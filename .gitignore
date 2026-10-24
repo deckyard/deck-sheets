@@ -1,0 +1,22 @@
+# the built book
+site/
+
+# the release archive tools/pack.sh builds
+dist/
+
+# a leftover from a crashed `jennifer fmt -w`.
+# tools/pack.sh refuses to build an archive while one is in src/.
+.jfmt-*.tmp
+
+# scratch: design notes, probe scripts, measurements
+/internal/
+
+# scratch from tools/validate-output.sh
+.validate-*/
+
+# scratch from tools/formula-oracle.sh and tools/format-oracle.sh
+.oracle-*/
+vendor/
+.jennifer-src/
+.ci-fixtures/
+.docblocks-*/

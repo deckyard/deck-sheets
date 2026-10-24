@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: LGPL-3.0-only
+# SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
+#
+# Open every written file in a real spreadsheet application.
+#
+# Deck-specific, and the reason it is its own workflow rather than a step in
+# test.yml: that file is identical in every deck repository, and this one needs
+# a LibreOffice install that no other deck wants. It is also the only check
+# that can fail for a reason the rest of the gate cannot see - a container that
+# parses here and is refused there - so it is worth its own red cross.
+#
+# A failure here means the written file is wrong. It is not a flaky job.
+
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  libreoffice:
+    name: files open in LibreOffice
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Resolve the interpreter image
+        run: |
+          set -euo pipefail
+          source tools/deck-lib.sh && deck_load
+          echo "JENNIFER_IMAGE=$(deck_image)" >> "$GITHUB_ENV"
+
+      - name: Pull the interpreter image
+        run: docker pull "$JENNIFER_IMAGE"
+
+      - name: Install a `jennifer` shim that runs the image
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          cat > "$HOME/.local/bin/jennifer" <<'SHIM'
+          #!/usr/bin/env bash
+          exec docker run --rm --user "$(id -u):$(id -g)" \
+            --volume "${GITHUB_WORKSPACE}:/work" --workdir /work \
+            --entrypoint jennifer "${JENNIFER_IMAGE}" "$@"
+          SHIM
+          chmod +x "$HOME/.local/bin/jennifer"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # Both, for different reasons. LibreOffice is what most people will
+      # open the file in and is forgiving, so it proves the file is usable.
+      # Gnumeric is the reference implementation for the .gnumeric format and
+      # is much stricter about all three - it caught a document LibreOffice
+      # read happily and Gnumeric refused outright.
+      - name: Install LibreOffice Calc and Gnumeric
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libreoffice-calc gnumeric
+          soffice --version
+          ssconvert --version | head -1
+
+      # The fixtures are written into the workspace so that the container can
+      # see them; the validation reads them back out through soffice on the
+      # runner itself.
+      - name: Open every written file and compare the values
+        run: tools/validate-output.sh
+
+      # The same argument for the formula engine: the deck's own tests were
+      # written from the same assumptions the engine was, so they cannot say
+      # whether it computes what a spreadsheet computes. This evaluates every
+      # case in tools/formula-oracle.txt here, in LibreOffice and in Gnumeric,
+      # and diffs all three answers. It has caught eight engine bugs,
+      # including `^` leaning the wrong way.
+      - name: Diff the formula engine against both applications
+        run: tools/formula-oracle.sh
+
+      # And the number-format engine, against the text LibreOffice puts on
+      # screen rather than the value behind it - in English and, when the
+      # locale is installed, in German. A format code is the same in every
+      # region; what is shown for one is not.
+      - name: Install a German locale for the regional pass
+        run: |
+          set -euo pipefail
+          sudo locale-gen de_DE.UTF-8 || true
+          sudo update-locale || true
+
+      - name: Diff the number formats against what LibreOffice displays
+        run: tools/format-oracle.sh

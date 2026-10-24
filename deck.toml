@@ -1,0 +1,23 @@
+[package]
+name = "@deckyard/sheets"
+version = "0.1.0"
+description = "Read, edit and write spreadsheet formats - ODS, XLSX and Gnumeric - over one cell model, with a CSV bridge"
+license = "LGPL-3.0-only"
+authors = ["mplx <mplx@jennifer-lang.dev>"]
+# What the deck is allowed to reach for. Empty means pure computation: no
+# sockets, no subprocesses, no database. Add "net" for a deck that talks to a
+# host, "exec" for one that shells out, "sql" for one that opens a database -
+# and say why in a comment, the way the other decks do.
+capabilities = []
+keywords = ["jennifer", "deck", "spreadsheet", "ods", "xlsx", "gnumeric", "opendocument", "ooxml", "csv", "cells"]
+
+[package.urls]
+deck = "https://raw.githubusercontent.com/deckyard/deck-sheets/main/deck.toml"
+homepage = "https://github.com/deckyard/deck-sheets"
+manual = "https://deckyard.github.io/deck-sheets/"
+
+# The interpreter floor - a floor, not a caret: the oldest build that runs this
+# deck. Every .j file repeats it in its "# pragma-jennifer-version:" line, and
+# tools/check-headers.sh keeps the two copies honest.
+[engines]
+jennifer = ">=0.25.0"
