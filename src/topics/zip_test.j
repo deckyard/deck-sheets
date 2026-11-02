@@ -246,7 +246,7 @@ func testAModestDeclarationPassesTheGuard() {
 func failOnAContainerWithTooManyMembers() {
     def members as list of Member init [];
     for (def i in 0..(MAX_ENTRIES + 1)) {
-        $members[] = member("p" + convert.toString($i) + ".xml", zipBytes("x"));
+        $members[] = storedMember("p" + convert.toString($i) + ".xml", zipBytes("x"));
     }
     unzip(zip($members));
 }
