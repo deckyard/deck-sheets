@@ -139,3 +139,8 @@ On one host:
 
 Parsing is the only superlinear step, and `MAX_FORMULA_TOKENS` bounds it. See
 [Memory](../internal/memory.md).
+
+The times are measured inside the deck. Called from your own program on
+jennifer 0.25.0, the evaluator copies the workbook it is handed far more often,
+and 1 000 formula cells take about 8 s; jennifer 0.26.0 removes those copies
+(about 0.8 s).
