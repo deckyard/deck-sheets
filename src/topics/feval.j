@@ -460,7 +460,27 @@ func resolveFrom(wb as Workbook, sheetName as string, seeds as list of string) {
             $high = $high - 1;
             continue;
         }
-        def step as CellStep init stepFor($work, $key, $sheetName, $done, $onStack);
+        # Looked up here rather than in a helper taking the workbook: a
+        # function that is handed `$work` and calls into another module
+        # copies it, once per cell.
+        def found as CellFound init CellFound{
+            ok: false,
+            which: 0,
+            ref: "",
+            sheetName: $sheetName,
+            source: ""
+        };
+        def spot as CellSpot init spotOf($key, $sheetName);
+        if ($spot.ok and hasSheet($work, $spot.sheetName)) {
+            $found.ok = true;
+            $found.which = sheetIndexOf($work, $spot.sheetName);
+            $found.ref = cellRef($spot.at);
+            $found.sheetName = $spot.sheetName;
+            if (maps.has($work.sheets[$found.which].cells, $found.ref)) {
+                $found.source = formulaSourceOf($work.sheets[$found.which].cells[$found.ref]);
+            }
+        }
+        def step as CellStep init stepFor($found, $sheetName, $done, $onStack);
         if ($step.verdict == STEP_SKIP) {
             $done[$key] = true;
             $onStack[$key] = false;
@@ -545,16 +565,14 @@ def struct CellStep {
  * Split out of `resolveFrom` so its loop stays flat rather than nesting four
  * deep.
  *
- * @param work {Workbook} the working copy being resolved into
- * @param key {string} the cell, as a `sheet!A1` key
+ * @param found {CellFound} the cell, already looked up by `resolveFrom`
  * @param sheetName {string} the sheet an unqualified key belongs to
  * @param done {map of string to bool} the cells already resolved
  * @param onStack {map of string to bool} the cells being resolved
  * @return {CellStep} what to do with it
  */
 func stepFor(
-    work as Workbook,
-    key as string,
+    found as CellFound,
     sheetName as string,
     done as map of string to bool,
     onStack as map of string to bool) {
@@ -567,15 +585,14 @@ func stepFor(
         waiting: [],
         tree: Expr.Num{amount: 0.0}
     };
-    def spot as CellSpot init spotOf($key, $sheetName);
-    if (not $spot.ok or not hasSheet($work, $spot.sheetName)) {
+    if (not $found.ok) {
         return $nothing;
     }
     def step as CellStep init $nothing;
-    $step.which = sheetIndexOf($work, $spot.sheetName);
-    $step.ref = cellRef($spot.at);
-    $step.sheetName = $spot.sheetName;
-    def source as string init formulaSourceAt($work, $step.which, $step.ref);
+    $step.which = $found.which;
+    $step.ref = $found.ref;
+    $step.sheetName = $found.sheetName;
+    def source as string init $found.source;
     if ($source == "") {
         # A literal, a blank, or a cell already replaced by its value.
         return $step;
@@ -595,7 +612,7 @@ func stepFor(
         return $step;
     }
     $step.tree = $tree;
-    def scan as DepScan init unresolvedDeps($tree, $spot.sheetName, $done, $onStack);
+    def scan as DepScan init unresolvedDeps($tree, $found.sheetName, $done, $onStack);
     if ($scan.looping) {
         $step.verdict = STEP_MARK;
         $step.code = ERR_CIRCULAR;
@@ -611,18 +628,32 @@ func stepFor(
 }
 
 /**
- * A cell's formula expression, or empty text when it holds no formula.
+ * Where a stack key points, and the formula held there.
  *
- * @param wb {Workbook} the workbook to read from
- * @param which {int} the sheet's index
- * @param ref {string} the cell's key within the sheet
+ * @field ok {bool} whether the key names a cell on an existing sheet
+ * @field which {int} the sheet's index
+ * @field ref {string} the cell's key within the sheet
+ * @field sheetName {string} the sheet the cell belongs to
+ * @field source {string} the formula's expression, or `""`
+ */
+def struct CellFound {
+    ok as bool,
+    which as int,
+    ref as string,
+    sheetName as string,
+    source as string
+};
+
+/**
+ * The expression of a formula cell.
+ *
+ * Takes the cell rather than the workbook: a binding `match` arm disables
+ * borrowing, so matching inside a function handed the workbook copied it.
+ *
+ * @param held {Value} the cell's value
  * @return {string} the expression, or `""`
  */
-func formulaSourceAt(wb as Workbook, which as int, ref as string) {
-    if (not maps.has($wb.sheets[$which].cells, $ref)) {
-        return "";
-    }
-    def held as Value init $wb.sheets[$which].cells[$ref];
+func formulaSourceOf(held as Value) {
     match ($held) {
         when Formula(f) { return $f.source; }
         else { return ""; }
