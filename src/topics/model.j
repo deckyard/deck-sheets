@@ -284,12 +284,18 @@ func sheetFrom(name as string, placed as list of Placed) {
     def cells as map of string to Value init {};
     def rowCount as int init 0;
     def colCount as int init 0;
+    # Column letters by index, built as columns are first seen: spelling a
+    # column per cell was most of the cost of building a sheet.
+    def columns as list of string init [];
     checkSheetCells($name, len($placed));
     for (def p in $placed) {
         if (isEmpty($p.value) or not onGrid($p.at)) {
             continue;
         }
-        $cells[cellRef($p.at)] = $p.value;
+        while (len($columns) <= $p.at.col) {
+            $columns[] = columnName(len($columns));
+        }
+        $cells[$columns[$p.at.col] + convert.toString($p.at.row + 1)] = $p.value;
         if ($p.at.row + 1 > $rowCount) {
             $rowCount = $p.at.row + 1;
         }
