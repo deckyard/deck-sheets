@@ -231,26 +231,29 @@ func formatKey(sheetIndex as int, local as int) {
  * reserved date formats - otherwise the right number would display as a
  * number.
  *
+ * Takes the cell's style-table index and style rather than the sheet: called
+ * once per cell, it would copy a sheet it was handed.
+ *
  * @param formats {XlsxFormats} the merged table
- * @param s {Sheet} the sheet
  * @param sheetIndex {int} the sheet's position
- * @param at {Ref} the cell
+ * @param local {int} the cell's index in the sheet's style table, `-1` for none
+ * @param st {Style} the style at that index
  * @param v {Value} the cell's value
  * @return {string} the index, as the `s` attribute's text
  */
-func xlsxStyleIndex(formats as XlsxFormats, s as Sheet, sheetIndex as int, at as Ref, v as Value) {
-    def key as string init cellRef($at);
-    if (not maps.has($s.cellStyles, $key)) {
-        return defaultStyleIndex($v);
-    }
-    def local as int init $s.cellStyles[$key];
+func xlsxStyleIndex(
+    formats as XlsxFormats,
+    sheetIndex as int,
+    local as int,
+    st as Style,
+    v as Value) {
     def mapped as string init formatKey($sheetIndex, $local);
     if ($local <= 0 or not maps.has($formats.indexOf, $mapped)) {
         return defaultStyleIndex($v);
     }
     # A style with no number format of its own still needs a date one when the
     # cell holds a date, or the serial would show.
-    if (isDateValue($v) and not isDateFormat($s.styles[$local])) {
+    if (isDateValue($v) and not isDateFormat($st)) {
         return defaultStyleIndex($v);
     }
     return convert.toString($formats.indexOf[$mapped]);
@@ -922,12 +925,21 @@ func xlsxWorksheet(
     $parts[] = tagOpen("sheetData");
     def lines as list of list of Value init rows($s);
     for (def r in 0..len($lines)) {
-        def styleIndices as list of string init styleIndicesForRow(
-            $formats,
-            $s,
-            $sheetIndex,
-            $r,
-            $lines[$r]);
+        # The style lookups stay in this loop: a helper handed the sheet once
+        # per row copied it every time, which made a large sheet quadratic.
+        def styleIndices as list of string init [];
+        for (def c in 0..len($lines[$r])) {
+            def key as string init cellRef(Ref{row: $r, col: $c});
+            def local as int init -1;
+            def st as Style init style();
+            if (maps.has($s.cellStyles, $key)) {
+                $local = $s.cellStyles[$key];
+            }
+            if ($local > 0 and $local < len($s.styles)) {
+                $st = $s.styles[$local];
+            }
+            $styleIndices[] = xlsxStyleIndex($formats, $sheetIndex, $local, $st, $lines[$r][$c]);
+        }
         def line as string init xlsxRowMarkup($lines[$r], $styleIndices, $r, $shared, $date1904);
         if ($line != "") {
             $parts[] = $line;
@@ -980,32 +992,6 @@ func xlsxRowMarkup(
     }
     return tagOpenWith("row", {"r": convert.toString($row + 1)}) +
         strings.join($cells, "") + tagClose("row");
-}
-
-/**
- * The `cellXfs` index each cell of a row points at.
- *
- * Resolved once per row so the cell builder is handed everything it needs and
- * does not reach back into the sheet per cell.
- *
- * @param formats {XlsxFormats} the workbook's merged style table
- * @param s {Sheet} the sheet
- * @param sheetIndex {int} the sheet's position
- * @param row {int} the zero-based row index
- * @param line {list of Value} the row's values
- * @return {list of string} one index per column, as text
- */
-func styleIndicesForRow(
-    formats as XlsxFormats,
-    s as Sheet,
-    sheetIndex as int,
-    row as int,
-    line as list of Value) {
-    def out as list of string init [];
-    for (def c in 0..len($line)) {
-        $out[] = xlsxStyleIndex($formats, $s, $sheetIndex, Ref{row: $row, col: $c}, $line[$c]);
-    }
-    return $out;
 }
 
 /**
