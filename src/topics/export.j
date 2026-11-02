@@ -466,12 +466,13 @@ func fillPage(
     if ($from > 0) {
         # The header again: a table whose columns are unlabelled after page
         # one is not a readable table.
-        $page = drawRow($page, $s, $lines[0], $widths, $size, 0, $y);
+        $page = drawRow($page, rowStyles($s, 0, len($lines[0])), $lines[0], $widths, $size, $y);
         $y = $y - $lineHeight;
     }
     def row as int init $from;
     while ($row < len($lines) and $y >= $floor) {
-        $page = drawRow($page, $s, $lines[$row], $widths, $size, $row, $y);
+        def styles as list of Style init rowStyles($s, $row, len($lines[$row]));
+        $page = drawRow($page, $styles, $lines[$row], $widths, $size, $y);
         $y = $y - $lineHeight;
         $row = $row + 1;
     }
@@ -484,37 +485,63 @@ func fillPage(
 }
 
 /**
+ * The styles of one row's cells.
+ *
+ * Looked up before drawing, so the drawing functions, which call into `pdf`,
+ * are not handed the sheet: a function that is handed a large value and calls
+ * into another module copies it.
+ *
+ * @param s {Sheet} the sheet
+ * @param row {int} the zero-based row index
+ * @param count {int} how many cells the row has
+ * @return {list of Style} one style per cell
+ */
+func rowStyles(s as Sheet, row as int, count as int) {
+    def out as list of Style init [];
+    for (def c in 0..$count) {
+        $out[] = styleAtRef($s, Ref{row: $row, col: $c});
+    }
+    return $out;
+}
+
+/**
  * Draw one row at a vertical position.
  *
+ * The page is edited and returned rather than copied into a local first,
+ * which would copy it once per row.
+ *
  * @param page {pdf.Page} the page so far
- * @param s {Sheet} the sheet, for the styles
+ * @param styles {list of Style} the row's cell styles
  * @param line {list of Value} the row's values
  * @param widths {list of float} the column widths in points
  * @param size {PageSize} the paper
- * @param row {int} the zero-based row index, for its styles
  * @param y {int} the baseline to draw on
- * @return {pdf.Page} a fresh page
+ * @return {pdf.Page} the page with the row drawn
  */
 func drawRow(
     page as pdf.Page,
-    s as Sheet,
+    styles as list of Style,
     line as list of Value,
     widths as list of float,
     size as PageSize,
-    row as int,
     y as int) {
-    def out as pdf.Page init $page;
     def x as float init convert.toFloat($size.margin);
     for (def c in 0..len($line)) {
-        def st as Style init styleAtRef($s, Ref{row: $row, col: $c});
         def width as float init 0.0;
         if ($c < len($widths)) {
             $width = $widths[$c];
         }
-        $out = drawCell($out, $st, $line[$c], $size, math.round($x), $y, math.round($width));
+        $page = drawCell(
+            $page,
+            $styles[$c],
+            $line[$c],
+            $size,
+            math.round($x),
+            $y,
+            math.round($width));
         $x = $x + $width;
     }
-    return $out;
+    return $page;
 }
 
 /**
@@ -527,7 +554,7 @@ func drawRow(
  * @param x {int} the left edge
  * @param y {int} the baseline
  * @param width {int} the cell's width
- * @return {pdf.Page} a fresh page
+ * @return {pdf.Page} the page with the cell drawn
  */
 func drawCell(
     page as pdf.Page,
@@ -537,45 +564,44 @@ func drawCell(
     x as int,
     y as int,
     width as int) {
-    def out as pdf.Page init $page;
     def height as int init $size.fontSize + 6;
     if ($st.background != "") {
-        $out = pdf.color(
-            $out,
+        $page = pdf.color(
+            $page,
             hexByte($st.background, 0),
             hexByte($st.background, 2),
             hexByte($st.background, 4));
-        $out = pdf.rect($out, $x, $y - 3, $width, $height, true);
-        $out = pdf.color($out, 0, 0, 0);
+        $page = pdf.rect($page, $x, $y - 3, $width, $height, true);
+        $page = pdf.color($page, 0, 0, 0);
     }
     if (borderToOoxml($st.border) != "") {
-        $out = pdf.rect($out, $x, $y - 3, $width, $height, false);
+        $page = pdf.rect($page, $x, $y - 3, $width, $height, false);
     }
     # As in the HTML export, through the cell's own number format.
     def body as string init applyFormat($v, $st.format);
     if ($body == "") {
-        return $out;
+        return $page;
     }
     if ($st.colour != "") {
-        $out = pdf.color(
-            $out,
+        $page = pdf.color(
+            $page,
             hexByte($st.colour, 0),
             hexByte($st.colour, 2),
             hexByte($st.colour, 4));
     }
     def fontName as string init pdfFont($st);
     def shown as string init fitText($body, $fontName, $size.fontSize, $width - 6);
-    $out = pdf.text(
-        $out,
+    $page = pdf.text(
+        $page,
         $x + 3 + textOffset($st, $shown, $fontName, $size, $width),
         $y,
         $fontName,
         $size.fontSize,
         $shown);
     if ($st.colour != "") {
-        $out = pdf.color($out, 0, 0, 0);
+        $page = pdf.color($page, 0, 0, 0);
     }
-    return $out;
+    return $page;
 }
 
 /**
@@ -689,7 +715,11 @@ func columnWidths(s as Sheet, lines as list of list of Value, size as PageSize) 
 func widestInColumn(s as Sheet, lines as list of list of Value, size as PageSize, col as int) {
     def widest as float init 0.0;
     for (def r in 0..len($lines)) {
-        def span as float init cellTextWidth($s, $lines[$r], $size, $r, $col);
+        if ($col >= len($lines[$r])) {
+            continue;
+        }
+        def st as Style init styleAtRef($s, Ref{row: $r, col: $col});
+        def span as float init cellTextWidth($st, $lines[$r][$col], $size);
         if ($span > $widest) {
             $widest = $span;
         }
@@ -700,20 +730,17 @@ func widestInColumn(s as Sheet, lines as list of list of Value, size as PageSize
 /**
  * How wide one cell's text draws.
  *
- * @param s {Sheet} the sheet, for the styles
- * @param line {list of Value} the row's values
+ * Takes the style and the value rather than the sheet, which a function
+ * calling into `pdf` would copy.
+ *
+ * @param st {Style} the cell's style
+ * @param v {Value} the cell's value
  * @param size {PageSize} the paper
- * @param row {int} the zero-based row index
- * @param col {int} the zero-based column index
- * @return {float} the width in points, `0.0` past the end of the row
+ * @return {float} the width in points
  */
-func cellTextWidth(s as Sheet, line as list of Value, size as PageSize, row as int, col as int) {
-    if ($col >= len($line)) {
-        return 0.0;
-    }
-    def st as Style init styleAtRef($s, Ref{row: $row, col: $col});
+func cellTextWidth(st as Style, v as Value, size as PageSize) {
     # The formatted text, or a column sized for `0.075` would clip `7.5%`.
-    return pdf.measureText(pdfFont($st), $size.fontSize, applyFormat($line[$col], $st.format));
+    return pdf.measureText(pdfFont($st), $size.fontSize, applyFormat($v, $st.format));
 }
 
 /**
