@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.25.0
+# pragma-jennifer-version: >=0.26.0
 
 # sheets - the OpenDocument spreadsheet reader.
 # Spliced into sheets.j via include - not a standalone module.
@@ -38,8 +38,9 @@ def const MAX_BLOCK_CELLS as int init 65536;
  * Read an ODS container.
  *
  * The cells come out of `content.xml`, which is walked with the scanner
- * rather than decoded into a tree: a sheet's rows are handed to `xml.decode`
- * one at a time, so peak memory follows the largest row rather than the file.
+ * and never decoded into a tree - not even a row at a time, since a decoded
+ * tree loses the order of a styled cell's mixed content. Peak memory follows
+ * the largest row rather than the file.
  *
  * @param raw {bytes} the `.ods` file
  * @return {Workbook} the workbook
