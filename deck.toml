@@ -20,4 +20,4 @@ manual = "https://deckyard.github.io/deck-sheets/"
 # deck. Every .j file repeats it in its "# pragma-jennifer-version:" line, and
 # tools/check-headers.sh keeps the two copies honest.
 [engines]
-jennifer = ">=0.25.0"
+jennifer = ">=0.26.0"

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.25.0
+# pragma-jennifer-version: >=0.26.0
 
 # sheets - the ZIP container ODS and XLSX are packaged in.
 # Spliced into sheets.j via include - not a standalone module.
@@ -220,7 +220,7 @@ func readLe16(raw as bytes, at as int) {
     if ($at < 0 or $at + 2 > len($raw)) {
         return 0;
     }
-    return $raw[$at] | ($raw[$at + 1] << 8);
+    return binary.readUint($raw, $at, 2, "le");
 }
 
 /**
@@ -234,8 +234,7 @@ func readLe32(raw as bytes, at as int) {
     if ($at < 0 or $at + 4 > len($raw)) {
         return 0;
     }
-    return $raw[$at] | ($raw[$at + 1] << 8) | ($raw[$at + 2] << 16) |
-        ($raw[$at + 3] << 24);
+    return binary.readUint($raw, $at, 4, "le");
 }
 
 /**
@@ -361,7 +360,7 @@ func localHeaderSize(nameLength as int) {
  */
 func crc32Of(data as bytes) {
     def digest as bytes init crc.compute($data, "crc32");
-    return ($digest[0] << 24) | ($digest[1] << 16) | ($digest[2] << 8) | $digest[3];
+    return binary.readUint($digest, 0, 4, "be");
 }
 
 /**

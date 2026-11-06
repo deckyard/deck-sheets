@@ -23,7 +23,7 @@ sheet.save($wb, "sales.ods");
 
 A conversion is a read and a write; nothing in between knows which format the
 workbook came from. Install with `jvc add @deckyard/sheets`; it needs Jennifer
-0.25.0 or newer and no capabilities beyond `fs` for `open` and `save`.
+0.26.0 or newer and no capabilities beyond `fs` for `open` and `save`.
 
 ## What it covers
 
