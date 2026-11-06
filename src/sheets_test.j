@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.25.0
+# pragma-jennifer-version: >=0.26.0
 
 /**
  * White-box unit tests for the sheets module.
@@ -47,11 +47,11 @@ include "topics/ffn_test.j";
 include "topics/ffntext_test.j";
 include "topics/ffnlogic_test.j";
 include "topics/odsread_test.j";
-include "topics/xlsxread_test.j";
 include "topics/odswrite_test.j";
+include "topics/xlsxread_test.j";
 include "topics/xlsxwrite_test.j";
 include "topics/gnumeric_test.j";
 include "topics/csvbridge_test.j";
-include "topics/rows_test.j";
 include "topics/export_test.j";
+include "topics/rows_test.j";
 include "topics/file_test.j";
