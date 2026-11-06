@@ -13,7 +13,7 @@ a fresh value: `$s = setCell($s, ...)`.
 | --- | --- | --- |
 | `ERROR_KIND` | `"sheets"` | The `kind` of every error this deck raises |
 | `MAX_NESTING` | 100 | Element depth past which a reader refuses the document |
-| `VERSION` | `"0.1.0"` | The deck version, kept in step with `deck.toml` |
+| `VERSION` | generated | The deck version, injected from the git tag |
 
 ## Styles
 
