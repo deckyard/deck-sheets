@@ -18,7 +18,7 @@
 func xlsxContainer(parts as map of string to string) {
     def members as list of Member init [];
     for (def path in $parts) {
-        $members[] = member($path, convert.bytesFromString($parts[$path], "utf-8"));
+        $members[] = member($path, convert.bytesFromString("utf-8", $parts[$path]));
     }
     return zip($members);
 }
@@ -308,7 +308,7 @@ func failOnXlsxWithNoWorkbookPart() {
 }
 
 func failOnXlsxThatIsNotAContainer() {
-    readXlsx(convert.bytesFromString("not a zip", "utf-8"));
+    readXlsx(convert.bytesFromString("utf-8", "not a zip"));
 }
 
 func failOnWorkbookListingNoSheets() {

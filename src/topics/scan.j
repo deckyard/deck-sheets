@@ -42,22 +42,22 @@ def const LT as int init 0x3c;
 # than converted on every call.
 
 /** `<` as a one-byte buffer, for `binary.indexOf`. */
-def const LT_PROBE as bytes init convert.bytesFromString("<", "utf-8");
+def const LT_PROBE as bytes init convert.bytesFromString("utf-8", "<");
 
 /** `>` as a one-byte buffer. */
-def const GT_PROBE as bytes init convert.bytesFromString(">", "utf-8");
+def const GT_PROBE as bytes init convert.bytesFromString("utf-8", ">");
 
 /** A double quote as a one-byte buffer. */
-def const DQUOTE_PROBE as bytes init convert.bytesFromString("\"", "utf-8");
+def const DQUOTE_PROBE as bytes init convert.bytesFromString("utf-8", "\"");
 
 /** A single quote as a one-byte buffer. */
-def const SQUOTE_PROBE as bytes init convert.bytesFromString("'", "utf-8");
+def const SQUOTE_PROBE as bytes init convert.bytesFromString("utf-8", "'");
 
 /** The opening of a CDATA section. */
-def const CDATA_PROBE as bytes init convert.bytesFromString("<![CDATA[", "utf-8");
+def const CDATA_PROBE as bytes init convert.bytesFromString("utf-8", "<![CDATA[");
 
 /** The opening of a comment. */
-def const COMMENT_PROBE as bytes init convert.bytesFromString("<!--", "utf-8");
+def const COMMENT_PROBE as bytes init convert.bytesFromString("utf-8", "<!--");
 
 /** The byte value of `>`. */
 def const GT as int init 0x3e;
@@ -565,7 +565,7 @@ func matchesAt(src as bytes, at as int, probe as bytes) {
  * @return {int} the offset just past it, or `limit` when it is not there
  */
 func skipPast(src as bytes, from as int, literal as string, limit as int) {
-    def needle as bytes init convert.bytesFromString($literal, "utf-8");
+    def needle as bytes init convert.bytesFromString("utf-8", $literal);
     def found as int init binary.indexOf($src, $needle, $from);
     if ($found < 0 or $found + len($needle) > $limit) {
         return $limit;
@@ -580,7 +580,7 @@ func skipPast(src as bytes, from as int, literal as string, limit as int) {
  * @return {bytes} its UTF-8 bytes
  */
 func probeOf(literal as string) {
-    return convert.bytesFromString($literal, "utf-8");
+    return convert.bytesFromString("utf-8", $literal);
 }
 
 /**
@@ -596,7 +596,7 @@ func byteText(src as bytes, from as int, limit as int) {
     if ($limit <= $from) {
         return "";
     }
-    return convert.stringFromBytes(binary.slice($src, $from, $limit), "utf-8");
+    return convert.stringFromBytes("utf-8", binary.slice($src, $from, $limit));
 }
 
 /**

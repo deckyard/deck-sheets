@@ -28,9 +28,9 @@ per-entry control. The result:
 A desktop treats a file identified as a generic archive as an archive, not a
 spreadsheet. So the deck writes the local file headers, central directory and
 end-of-central-directory record itself, choosing stored or deflated per
-member. The checksum comes from `crc.compute(b, "crc32")`, which
+member. The checksum comes from `crc.compute("crc32", b)`, which
 returns four big-endian `bytes` rather than an int, and the payload from
-`compress.pack(b, "deflate")`.
+`compress.pack("deflate", b)`.
 
 Checked with Python's `zipfile` (`testzip()` clean, CRCs correct), `unzip -t`
 and `file(1)`. A well-formed container can still be refused by a spreadsheet

@@ -13,6 +13,7 @@
  */
 func odsDocument(tables as string) {
     return convert.bytesFromString(
+        "utf-8",
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
             "<office:document-content" +
             " xmlns:office=\"urn:oasis:names:tc:opendocument:xmlns:office:1.0\"" +
@@ -20,8 +21,7 @@ func odsDocument(tables as string) {
             " xmlns:text=\"urn:oasis:names:tc:opendocument:xmlns:text:1.0\"" +
             " office:version=\"1.3\">" +
             "<office:body><office:spreadsheet>" + $tables +
-            "</office:spreadsheet></office:body></office:document-content>",
-        "utf-8");
+            "</office:spreadsheet></office:body></office:document-content>");
 }
 
 /**
@@ -273,12 +273,12 @@ func testAFloatWithAnUnreadableValueFallsBackToItsText() {
 
 func failOnContentWithNoSpreadsheet() {
     readOdsContent(convert.bytesFromString(
-        "<office:document-content><office:body/></office:document-content>",
-        "utf-8"));
+        "utf-8",
+        "<office:document-content><office:body/></office:document-content>"));
 }
 
 func failOnEmptyContent() {
-    readOdsContent(convert.bytesFromString("", "utf-8"));
+    readOdsContent(convert.bytesFromString("utf-8", ""));
 }
 
 func failOnSpreadsheetWithNoTables() {
@@ -292,7 +292,7 @@ func testReadOdsContentRefusesWhatIsNotAWorkbook() {
 }
 
 func failOnNonContainer() {
-    readOds(convert.bytesFromString("not a zip", "utf-8"));
+    readOds(convert.bytesFromString("utf-8", "not a zip"));
 }
 
 func testReadOdsRefusesWhatIsNotAContainer() {
@@ -303,7 +303,7 @@ func failOnWrongMimetype() {
     def members as list of Member init [];
     $members[] = storedMember(
         "mimetype",
-        convert.bytesFromString("application/vnd.oasis.opendocument.text", "utf-8"));
+        convert.bytesFromString("utf-8", "application/vnd.oasis.opendocument.text"));
     $members[] = member("content.xml", odsOneRow("<table:table-cell/>"));
     readOds(zip($members));
 }
@@ -326,7 +326,7 @@ func testAMissingMimetypeIsTolerated() {
 
 func failOnContainerWithNoContent() {
     def members as list of Member init [];
-    $members[] = storedMember("mimetype", convert.bytesFromString(ODS_MIMETYPE, "utf-8"));
+    $members[] = storedMember("mimetype", convert.bytesFromString("utf-8", ODS_MIMETYPE));
     readOds(zip($members));
 }
 
@@ -345,6 +345,7 @@ func testAnExternalEntityIsNotResolved() {
     # references itself, rather than handing the document to a DTD-aware
     # parser, so a SYSTEM entity is left standing as text and no file is read.
     def wb as Workbook init readOdsContent(convert.bytesFromString(
+        "utf-8",
         "<?xml version=\"1.0\"?>" +
             "<!DOCTYPE d [<!ENTITY x SYSTEM \"file:///etc/passwd\">]>" +
             "<office:document-content" +
@@ -355,8 +356,7 @@ func testAnExternalEntityIsNotResolved() {
             "<table:table table:name=\"S\"><table:table-row>" +
             "<table:table-cell office:value-type=\"string\"><text:p>&x;</text:p>" +
             "</table:table-cell></table:table-row></table:table>" +
-            "</office:spreadsheet></office:body></office:document-content>",
-        "utf-8"));
+            "</office:spreadsheet></office:body></office:document-content>"));
     testing.assertEqual(asString(cell(sheetByName($wb, "S"), "A1")), "&x;");
 }
 
@@ -364,6 +364,7 @@ func testAnEntityBombIsNotExpanded() {
     # Billion laughs: the nested entity definitions are never expanded, for
     # the same reason, so the cell holds the reference as text.
     def wb as Workbook init readOdsContent(convert.bytesFromString(
+        "utf-8",
         "<?xml version=\"1.0\"?>" +
             "<!DOCTYPE d [<!ENTITY e0 \"AAAA\">" +
             "<!ENTITY e1 \"&e0;&e0;\"><!ENTITY e2 \"&e1;&e1;\">]>" +
@@ -375,8 +376,7 @@ func testAnEntityBombIsNotExpanded() {
             "<table:table table:name=\"S\"><table:table-row>" +
             "<table:table-cell office:value-type=\"string\"><text:p>&e2;</text:p>" +
             "</table:table-cell></table:table-row></table:table>" +
-            "</office:spreadsheet></office:body></office:document-content>",
-        "utf-8"));
+            "</office:spreadsheet></office:body></office:document-content>"));
     testing.assertEqual(asString(cell(sheetByName($wb, "S"), "A1")), "&e2;");
 }
 
@@ -416,9 +416,9 @@ func testOdsReadsNumberStylesFromTheStylesPart() {
         "number:min-integer-digits=\"1\"/></number:number-style>" +
         "</office:styles></office:document-styles>";
     def raw as bytes init zip([
-        storedMember("mimetype", convert.bytesFromString(ODS_MIMETYPE, "utf-8")),
-        member("content.xml", convert.bytesFromString($content, "utf-8")),
-        member("styles.xml", convert.bytesFromString($styles, "utf-8"))
+        storedMember("mimetype", convert.bytesFromString("utf-8", ODS_MIMETYPE)),
+        member("content.xml", convert.bytesFromString("utf-8", $content)),
+        member("styles.xml", convert.bytesFromString("utf-8", $styles))
     ]);
     def s as Sheet init sheetByName(readOds($raw), "S");
     testing.assertEqual(styleAt($s, "A1").format, "0.00");
@@ -486,7 +486,7 @@ func testOdsAppliesAColumnDefaultCellStyle() {
         "</table:table-row></table:table>" +
         "</office:spreadsheet></office:body></office:document-content>";
     def s as Sheet init sheetByName(
-        readOdsContent(convert.bytesFromString($content, "utf-8")),
+        readOdsContent(convert.bytesFromString("utf-8", $content)),
         "S");
     # The first column declares no default, so its cell stays plain.
     testing.assertTrue(isPlain(styleAt($s, "A1")));
@@ -518,7 +518,7 @@ func testOdsCellStyleBeatsTheColumnDefault() {
         "</table:table-row></table:table>" +
         "</office:spreadsheet></office:body></office:document-content>";
     def s as Sheet init sheetByName(
-        readOdsContent(convert.bytesFromString($content, "utf-8")),
+        readOdsContent(convert.bytesFromString("utf-8", $content)),
         "S");
     testing.assertEqual(styleAt($s, "A1").format, "0.000");
 }
@@ -538,7 +538,7 @@ func testOdsColumnDefaultsAreBoundedByTheGrid() {
         "</table:table-row></table:table>" +
         "</office:spreadsheet></office:body></office:document-content>";
     def s as Sheet init sheetByName(
-        readOdsContent(convert.bytesFromString($content, "utf-8")),
+        readOdsContent(convert.bytesFromString("utf-8", $content)),
         "S");
     testing.assertEqual(asString(cell($s, "A1")), "1");
 }

@@ -57,7 +57,7 @@ func testTheWorkbookHasOneStyleTable() {
     $a = setStyle($a, "A1", $st);
     $b = setStyle($b, "A1", $st);
     def wb as Workbook init addSheet(addSheet(newWorkbook(), $a), $b);
-    def doc as string init convert.stringFromBytes(unzip(writeXlsx($wb))["xl/styles.xml"], "utf-8");
+    def doc as string init convert.stringFromBytes("utf-8", unzip(writeXlsx($wb))["xl/styles.xml"]);
     # The three reserved entries plus one shared style.
     testing.assertTrue(strings.contains($doc, "<cellXfs count=\"4\">"));
     def back as Workbook init readXlsx(writeXlsx($wb));
@@ -90,8 +90,8 @@ func testTheStyleTablesAreBuiltFromWhatIsUsed() {
     $s = setStyle($s, "A1", withBackground(style(), "FFF2CC"));
     $s = setStyle($s, "B1", withFormat(style(), "#,##0.00"));
     def doc as string init convert.stringFromBytes(
-        unzip(writeXlsx(addSheet(newWorkbook(), $s)))["xl/styles.xml"],
-        "utf-8");
+        "utf-8",
+        unzip(writeXlsx(addSheet(newWorkbook(), $s)))["xl/styles.xml"]);
     # Two reserved fills plus the one used; a file's own formats start at 164.
     testing.assertTrue(strings.contains($doc, "<fills count=\"3\">"));
     testing.assertTrue(strings.contains($doc, "numFmtId=\"164\""));

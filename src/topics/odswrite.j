@@ -41,7 +41,7 @@ export func writeOds(wb as Workbook) {
         fail("cannot write a workbook with no sheets");
     }
     def members as list of Member init [];
-    $members[] = storedMember("mimetype", convert.bytesFromString(ODS_MIMETYPE, "utf-8"));
+    $members[] = storedMember("mimetype", convert.bytesFromString("utf-8", ODS_MIMETYPE));
     $members[] = member("META-INF/manifest.xml", odsManifest());
     $members[] = member("content.xml", writeOdsContent($wb));
     $members[] = member("styles.xml", odsStyles());

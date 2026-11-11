@@ -13,7 +13,7 @@
 
 /** A string as the byte buffer the scanner works on. */
 func buffer(text as string) {
-    return convert.bytesFromString($text, "utf-8");
+    return convert.bytesFromString("utf-8", $text);
 }
 
 /** The direct children of a document's root element. */

@@ -51,7 +51,7 @@ func testFormatOfBytesIdentifiesEachContainer() {
 }
 
 func failOnBytesThatAreNoFormat() {
-    formatOfBytes(convert.bytesFromString("just some text", "utf-8"));
+    formatOfBytes(convert.bytesFromString("utf-8", "just some text"));
 }
 
 func testFormatOfBytesRefusesWhatItCannotIdentify() {

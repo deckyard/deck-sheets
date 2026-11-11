@@ -55,7 +55,7 @@ func testPartsBytesJoinsAndEncodes() {
     $parts[] = tagText("t", "café & crème");
     $parts[] = tagClose("si");
     testing.assertEqual(
-        convert.stringFromBytes(partsBytes($parts), "utf-8"),
+        convert.stringFromBytes("utf-8", partsBytes($parts)),
         "<si><t>café &amp; crème</t></si>");
 }
 

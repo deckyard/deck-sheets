@@ -100,7 +100,7 @@ func gunzipIfNeeded(raw as bytes) {
     }
     def out as bytes init $raw;
     try {
-        $out = compress.unpack($raw, "gzip");
+        $out = compress.unpack("gzip", $raw);
     } catch (e) {
         fail("the file is gzipped but the member is damaged: " + $e.message);
     }
@@ -291,7 +291,7 @@ func gnumericUntyped(body as string) {
  *   fs.writeBytes("out.gnumeric", writeGnumeric($wb));
  */
 export func writeGnumeric(wb as Workbook) {
-    return compress.pack(writeGnumericXml($wb), "gzip");
+    return compress.pack("gzip", writeGnumericXml($wb));
 }
 
 /**

@@ -108,7 +108,7 @@ func looksLikeGnumericXml(raw as bytes) {
     }
     def opening as string init "";
     try {
-        $opening = convert.stringFromBytes(binary.slice($raw, 0, $head), "utf-8");
+        $opening = convert.stringFromBytes("utf-8", binary.slice($raw, 0, $head));
     } catch (e) {
         return false;
     }
@@ -155,8 +155,8 @@ export func writeFormat(wb as Workbook, kind as Format) {
         when Ods { return writeOds($wb); }
         when Xlsx { return writeXlsx($wb); }
         when Gnumeric { return writeGnumeric($wb); }
-        when Csv { return convert.bytesFromString(writeCsv($wb, ""), "utf-8"); }
-        when Tsv { return convert.bytesFromString(writeDelimited($wb, "", "\t"), "utf-8"); }
+        when Csv { return convert.bytesFromString("utf-8", writeCsv($wb, "")); }
+        when Tsv { return convert.bytesFromString("utf-8", writeDelimited($wb, "", "\t")); }
     }
 }
 
@@ -170,7 +170,7 @@ export func writeFormat(wb as Workbook, kind as Format) {
 func utf8Text(raw as bytes) {
     def out as string init "";
     try {
-        $out = convert.stringFromBytes($raw, "utf-8");
+        $out = convert.stringFromBytes("utf-8", $raw);
     } catch (e) {
         fail("the text is not valid UTF-8; convert it first with the " +
             "encoding library");

@@ -98,23 +98,23 @@ func testRowNumberFollowsTheSheetNotTheCount() {
     $members[] = member(
         "xl/workbook.xml",
         convert.bytesFromString(
+            "utf-8",
             "<workbook xmlns:r=\"r\"><sheets><sheet name=\"S\" r:id=\"rId1\"/>" +
-                "</sheets></workbook>",
-            "utf-8"));
+                "</sheets></workbook>"));
     $members[] = member(
         "xl/_rels/workbook.xml.rels",
         convert.bytesFromString(
+            "utf-8",
             "<Relationships><Relationship Id=\"rId1\" " +
-                "Target=\"worksheets/sheet1.xml\"/></Relationships>",
-            "utf-8"));
+                "Target=\"worksheets/sheet1.xml\"/></Relationships>"));
     $members[] = member(
         "xl/worksheets/sheet1.xml",
         convert.bytesFromString(
+            "utf-8",
             "<worksheet><sheetData>" +
                 "<row r=\"1\"><c r=\"A1\"><v>1</v></c></row>" +
                 "<row r=\"7\"><c r=\"A7\"><v>7</v></c></row>" +
-                "</sheetData></worksheet>",
-            "utf-8"));
+                "</sheetData></worksheet>"));
     def r as RowReader init openRowsFromBytes(zip($members), Format.Xlsx, "S");
     $r = nextRow($r);
     testing.assertEqual(rowNumber($r), 1);
@@ -128,22 +128,22 @@ func testTheCursorFillsAGapWithinARow() {
     $members[] = member(
         "xl/workbook.xml",
         convert.bytesFromString(
+            "utf-8",
             "<workbook xmlns:r=\"r\"><sheets><sheet name=\"S\" r:id=\"rId1\"/>" +
-                "</sheets></workbook>",
-            "utf-8"));
+                "</sheets></workbook>"));
     $members[] = member(
         "xl/_rels/workbook.xml.rels",
         convert.bytesFromString(
+            "utf-8",
             "<Relationships><Relationship Id=\"rId1\" " +
-                "Target=\"worksheets/sheet1.xml\"/></Relationships>",
-            "utf-8"));
+                "Target=\"worksheets/sheet1.xml\"/></Relationships>"));
     $members[] = member(
         "xl/worksheets/sheet1.xml",
         convert.bytesFromString(
+            "utf-8",
             "<worksheet><sheetData><row r=\"1\">" +
                 "<c r=\"A1\"><v>1</v></c><c r=\"D1\"><v>4</v></c>" +
-                "</row></sheetData></worksheet>",
-            "utf-8"));
+                "</row></sheetData></worksheet>"));
     def r as RowReader init openRowsFromBytes(zip($members), Format.Xlsx, "S");
     $r = nextRow($r);
     def values as list of Value init rowValues($r);
@@ -212,7 +212,7 @@ func failOnStreamingAMissingOdsSheet() {
 }
 
 func failOnStreamingSomethingThatIsNotAContainer() {
-    openRowsFromBytes(convert.bytesFromString("nope", "utf-8"), Format.Xlsx, "");
+    openRowsFromBytes(convert.bytesFromString("utf-8", "nope"), Format.Xlsx, "");
 }
 
 func testTheCursorRefusesWhatItCannotOpen() {

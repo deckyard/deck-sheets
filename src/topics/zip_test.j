@@ -12,7 +12,7 @@
  * @return {bytes} the text as UTF-8
  */
 func zipBytes(body as string) {
-    return convert.bytesFromString($body, "utf-8");
+    return convert.bytesFromString("utf-8", $body);
 }
 
 func testZipAndUnzipRoundTrip() {
@@ -21,15 +21,15 @@ func testZipAndUnzipRoundTrip() {
     $members[] = member("styles.xml", zipBytes("<y/>"));
     def parts as map of string to bytes init unzip(zip($members));
     testing.assertEqual(len($parts), 2);
-    testing.assertEqual(convert.stringFromBytes($parts["content.xml"], "utf-8"), "<x/>");
-    testing.assertEqual(convert.stringFromBytes($parts["styles.xml"], "utf-8"), "<y/>");
+    testing.assertEqual(convert.stringFromBytes("utf-8", $parts["content.xml"]), "<x/>");
+    testing.assertEqual(convert.stringFromBytes("utf-8", $parts["styles.xml"]), "<y/>");
 }
 
 func testAStoredMemberRoundTripsToo() {
     def members as list of Member init [];
     $members[] = storedMember("mimetype", zipBytes("application/x-test"));
     def parts as map of string to bytes init unzip(zip($members));
-    testing.assertEqual(convert.stringFromBytes($parts["mimetype"], "utf-8"), "application/x-test");
+    testing.assertEqual(convert.stringFromBytes("utf-8", $parts["mimetype"]), "application/x-test");
 }
 
 func testTheFirstMemberStaysFirst() {
@@ -65,7 +65,7 @@ func testADeflatedMemberIsCompressed() {
     def raw as bytes init zip($members);
     testing.assertFalse(binary.contains($raw, zipBytes($body)));
     def parts as map of string to bytes init unzip($raw);
-    testing.assertEqual(convert.stringFromBytes($parts["content.xml"], "utf-8"), $body);
+    testing.assertEqual(convert.stringFromBytes("utf-8", $parts["content.xml"]), $body);
 }
 
 func testAnEmptyMemberRoundTrips() {
@@ -89,7 +89,7 @@ func testNonAsciiMemberContentRoundTrips() {
     $members[] = member("content.xml", zipBytes("<t>café &amp; crème</t>"));
     def parts as map of string to bytes init unzip(zip($members));
     testing.assertEqual(
-        convert.stringFromBytes($parts["content.xml"], "utf-8"),
+        convert.stringFromBytes("utf-8", $parts["content.xml"]),
         "<t>café &amp; crème</t>");
 }
 
@@ -105,7 +105,7 @@ func testABigMemberRoundTrips() {
     $members[] = member("big.xml", zipBytes($body));
     def parts as map of string to bytes init unzip(zip($members));
     testing.assertEqual(len($parts["big.xml"]), 200000);
-    testing.assertEqual(convert.stringFromBytes($parts["big.xml"], "utf-8"), $body);
+    testing.assertEqual(convert.stringFromBytes("utf-8", $parts["big.xml"]), $body);
 }
 
 func testWritingTheSameMembersTwiceGivesTheSameBytes() {
@@ -119,7 +119,7 @@ func testWritingTheSameMembersTwiceGivesTheSameBytes() {
 }
 
 func failOnUnreadableContainer() {
-    unzip(convert.bytesFromString("this is not a zip file", "utf-8"));
+    unzip(convert.bytesFromString("utf-8", "this is not a zip file"));
 }
 
 func testUnzipRefusesWhatIsNotAContainer() {

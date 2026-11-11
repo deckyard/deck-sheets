@@ -251,8 +251,8 @@ func testOdfColourLivesInThePropertiesNotTheCode() {
         withFormat(style(), "0.00;[Red]-0.00"));
     def raw as bytes init writeOds(addSheet(newWorkbook(), $s));
     def content as string init convert.stringFromBytes(
-        writeOdsContent(addSheet(newWorkbook(), $s)),
-        "utf-8");
+        "utf-8",
+        writeOdsContent(addSheet(newWorkbook(), $s)));
     testing.assertTrue(strings.contains($content, "fo:color=\"#ff0000\""));
     def back as Sheet init sheetByName(readOds($raw), "S");
     testing.assertEqual(styleAt($back, "A1").format, "0.00;-0.00");
@@ -294,7 +294,7 @@ func testOdfSurvivesAMalformedStyle() {
         "</table:table-row></table:table>" +
         "</office:spreadsheet></office:body></office:document-content>";
     def s as Sheet init sheetByName(
-        readOdsContent(convert.bytesFromString($document, "utf-8")),
+        readOdsContent(convert.bytesFromString("utf-8", $document)),
         "S");
     testing.assertEqual(asString(cell($s, "A1")), "1");
 }

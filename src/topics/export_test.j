@@ -197,9 +197,9 @@ func testToPdfProducesAPdf() {
     def doc as bytes init toPdf(exportFixture(), a4());
     testing.assertTrue(len($doc) > 0);
     # The magic and the trailer are what a reader looks for.
-    testing.assertEqual(convert.stringFromBytes(binary.slice($doc, 0, 5), "utf-8"), "%PDF-");
-    testing.assertTrue(binary.indexOf($doc, convert.bytesFromString("%%EOF", "utf-8"), 0) > 0);
-    testing.assertTrue(binary.indexOf($doc, convert.bytesFromString("/Type /Page", "utf-8"), 0) > 0);
+    testing.assertEqual(convert.stringFromBytes("utf-8", binary.slice($doc, 0, 5)), "%PDF-");
+    testing.assertTrue(binary.indexOf($doc, convert.bytesFromString("utf-8", "%%EOF"), 0) > 0);
+    testing.assertTrue(binary.indexOf($doc, convert.bytesFromString("utf-8", "/Type /Page"), 0) > 0);
 }
 
 func testToPdfPaginates() {
@@ -213,7 +213,7 @@ func testToPdfPaginates() {
     # One /MediaBox per page, which is how a reader counts them too.
     def pages as int init 0;
     def at as int init 0;
-    def marker as bytes init convert.bytesFromString("/MediaBox", "utf-8");
+    def marker as bytes init convert.bytesFromString("utf-8", "/MediaBox");
     while (true) {
         def hit as int init binary.indexOf($doc, $marker, $at);
         if ($hit < 0) {
@@ -228,7 +228,7 @@ func testToPdfPaginates() {
 func testToPdfOnAnEmptySheet() {
     # One blank page, not a document with no pages, which no reader accepts.
     def doc as bytes init toPdf(newSheet("Empty"), a4());
-    testing.assertEqual(convert.stringFromBytes(binary.slice($doc, 0, 5), "utf-8"), "%PDF-");
+    testing.assertEqual(convert.stringFromBytes("utf-8", binary.slice($doc, 0, 5)), "%PDF-");
 }
 
 func failOnExportingTooManyRows() {

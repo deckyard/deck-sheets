@@ -129,7 +129,7 @@ func unzip(raw as bytes) {
     def out as map of string to bytes init {};
     def entries as list of archive.Entry init [];
     try {
-        $entries = archive.unpack($raw, "zip");
+        $entries = archive.unpack("zip", $raw);
     } catch (e) {
         fail("not a readable ZIP container: " + $e.message);
     }
@@ -220,7 +220,7 @@ func readLe16(raw as bytes, at as int) {
     if ($at < 0 or $at + 2 > len($raw)) {
         return 0;
     }
-    return binary.readUint($raw, $at, 2, "le");
+    return binary.readUint("le", $raw, $at, 2);
 }
 
 /**
@@ -234,7 +234,7 @@ func readLe32(raw as bytes, at as int) {
     if ($at < 0 or $at + 4 > len($raw)) {
         return 0;
     }
-    return binary.readUint($raw, $at, 4, "le");
+    return binary.readUint("le", $raw, $at, 4);
 }
 
 /**
@@ -252,7 +252,7 @@ func partText(parts as map of string to bytes, name as string) {
         fail("the container has no " + quoted($name) + " (it holds " +
             partNameList($parts) + ")");
     }
-    return convert.stringFromBytes($parts[$name], "utf-8");
+    return convert.stringFromBytes("utf-8", $parts[$name]);
 }
 
 /**
@@ -294,7 +294,7 @@ func zip(members as list of Member) {
     def offset as int init 0;
     for (def m in $members) {
         def encoded as bytes init memberBody($m);
-        def nameBytes as bytes init convert.bytesFromString($m.name, "utf-8");
+        def nameBytes as bytes init convert.bytesFromString("utf-8", $m.name);
         def method as int init METHOD_DEFLATE;
         if ($m.stored) {
             $method = METHOD_STORE;
@@ -336,7 +336,7 @@ func memberBody(m as Member) {
     if ($m.stored) {
         return $m.data;
     }
-    return compress.pack($m.data, "deflate");
+    return compress.pack("deflate", $m.data);
 }
 
 /**
@@ -359,8 +359,8 @@ func localHeaderSize(nameLength as int) {
  * @return {int} the checksum
  */
 func crc32Of(data as bytes) {
-    def digest as bytes init crc.compute($data, "crc32");
-    return binary.readUint($digest, 0, 4, "be");
+    def digest as bytes init crc.compute("crc32", $data);
+    return binary.readUint("be", $digest, 0, 4);
 }
 
 /**

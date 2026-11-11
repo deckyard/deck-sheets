@@ -109,7 +109,7 @@ func checkOdsMimetype(parts as map of string to bytes) {
     if (not maps.has($parts, "mimetype")) {
         return;
     }
-    def declared as string init strings.trim(convert.stringFromBytes($parts["mimetype"], "utf-8"));
+    def declared as string init strings.trim(convert.stringFromBytes("utf-8", $parts["mimetype"]));
     if ($declared != "" and $declared != ODS_MIMETYPE) {
         fail("the container declares the media type " + quoted($declared) +
             ", which is not an OpenDocument spreadsheet");

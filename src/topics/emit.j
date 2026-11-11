@@ -133,5 +133,5 @@ func attributeText(attrs as map of string to string) {
  *   return partsBytes($parts);
  */
 func partsBytes(parts as list of string) {
-    return convert.bytesFromString(strings.join($parts, ""), "utf-8");
+    return convert.bytesFromString("utf-8", strings.join($parts, ""));
 }
