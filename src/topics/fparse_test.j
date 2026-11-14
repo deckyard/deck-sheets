@@ -197,7 +197,7 @@ func failOnDeeplyNestedFormula() {
 }
 
 func testParseRefusesRunawayNesting() {
-    testing.assertThrows("failOnDeeplyNestedFormula", ERROR_KIND);
+    testing.assertThrows("failOnDeeplyNestedFormula", "limit");
 }
 
 func failOnAWideFormula() {
@@ -211,7 +211,7 @@ func failOnAWideFormula() {
 }
 
 func testParseRefusesAFormulaWiderThanTheCap() {
-    testing.assertThrows("failOnAWideFormula", ERROR_KIND);
+    testing.assertThrows("failOnAWideFormula", "limit");
     # 512 is far past any formula a person writes, and the cap applies only
     # to evaluation - a file's formulas are stored as text and never parsed.
     testing.assertEqual(MAX_FORMULA_TOKENS, 512);

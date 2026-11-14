@@ -33,7 +33,7 @@ export def const MAX_EXPORT_ROWS as int init 100000;
  *
  * @param s {Sheet} the sheet
  * @return {string} a `<table>` element
- * @throws {Error} kind "sheets" when the sheet has more rows than `MAX_EXPORT_ROWS`
+ * @throws {Error} kind "limit" when the sheet has more rows than `MAX_EXPORT_ROWS`
  * @example
  *   fs.writeString("out.html", toHtml(sheetByName($wb, "Q3")));
  */
@@ -57,7 +57,7 @@ export func toHtml(s as Sheet) {
  *
  * @param wb {Workbook} the workbook
  * @return {string} the sections
- * @throws {Error} kind "sheets" when a sheet is too large to lay out
+ * @throws {Error} kind "limit" when a sheet is too large to lay out
  * @example
  *   fs.writeString("book.html", workbookToHtml($wb));
  */
@@ -79,7 +79,7 @@ export func workbookToHtml(wb as Workbook) {
  * @param s {Sheet} the sheet
  * @param title {string} the document title; `""` uses the sheet's name
  * @return {string} the document
- * @throws {Error} kind "sheets" when the sheet is too large to lay out
+ * @throws {Error} kind "limit" when the sheet is too large to lay out
  * @example
  *   fs.writeString("q3.html", toHtmlDocument($s, "Q3 revenue"));
  */
@@ -255,7 +255,7 @@ func htmlBorder(weight as BorderStyle) {
  *
  * @param s {Sheet} the sheet
  * @return {list of map of string to string} one record per row after the first
- * @throws {Error} kind "sheets" when the sheet is too large, or has no rows
+ * @throws {Error} kind "limit" when the sheet is too large; kind "sheets" when it has no rows
  * @example
  *   for (def r in toRecords($s)) { insert($r["Region"], $r["Revenue"]); }
  */
@@ -312,7 +312,7 @@ func recordKeys(header as list of Value) {
  *
  * @param s {Sheet} the sheet
  * @return {string} a JSON array of objects
- * @throws {Error} kind "sheets" when the sheet is too large, or has no rows
+ * @throws {Error} kind "limit" when the sheet is too large; kind "sheets" when it has no rows
  * @example
  *   fs.writeString("rows.json", toJson($s));
  */
@@ -327,7 +327,7 @@ export func toJson(s as Sheet) {
  *
  * @param s {Sheet} the sheet
  * @return {string} the records, one JSON object per line
- * @throws {Error} kind "sheets" when the sheet is too large, or has no rows
+ * @throws {Error} kind "limit" when the sheet is too large; kind "sheets" when it has no rows
  * @example
  *   fs.writeString("rows.jsonl", toJsonLines($s));
  */
@@ -356,7 +356,7 @@ export func toJsonLines(s as Sheet) {
  * @param s {Sheet} the sheet
  * @param size {PageSize} the paper to lay out on
  * @return {bytes} the PDF
- * @throws {Error} kind "sheets" when the sheet is too large to lay out
+ * @throws {Error} kind "limit" when the sheet is too large to lay out
  * @example
  *   fs.writeBytes("q3.pdf", toPdf($s, a4()));
  */
@@ -791,11 +791,11 @@ func hexByte(rgb as string, at as int) {
  * Refuse a sheet too large to lay out.
  *
  * @param s {Sheet} the sheet
- * @throws {Error} kind "sheets" when it has more rows than `MAX_EXPORT_ROWS`
+ * @throws {Error} kind "limit" when it has more rows than `MAX_EXPORT_ROWS`
  */
 func checkExportSize(s as Sheet) {
     if ($s.rowCount > MAX_EXPORT_ROWS) {
-        fail("sheet " + quoted($s.name) + " has " + convert.toString($s.rowCount) +
+        failLimit("sheet " + quoted($s.name) + " has " + convert.toString($s.rowCount) +
             " rows, past the " + convert.toString(MAX_EXPORT_ROWS) +
             " an export will lay out; slice it, or stream it with openRows " +
             "and build the document yourself");

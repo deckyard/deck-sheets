@@ -11,7 +11,7 @@ a fresh value: `$s = setCell($s, ...)`.
 
 | Constant | Value | Meaning |
 | --- | --- | --- |
-| `ERROR_KIND` | `"sheets"` | The `kind` of every error this deck raises |
+| `ERROR_KIND` | `"sheets"` | The `kind` of every error this deck raises, except a reached cap (`"limit"`) |
 | `MAX_NESTING` | 100 | Element depth past which a reader refuses the document |
 | `VERSION` | generated | The deck version, injected from the git tag |
 

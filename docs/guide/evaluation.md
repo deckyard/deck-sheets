@@ -39,9 +39,9 @@ sheet.isErrorValue(sheet.evaluate($wb, "S", "1/0"));    # true
 An error operand makes the whole expression that error (`1/0+1` is
 `#DIV/0!`); `IFERROR` and `IFNA` catch one.
 
-`evaluate` throws, with `kind: "sheets"`, only when the caller is at fault: a
-sheet the workbook lacks, an expression that does not parse, or one past
-`MAX_FORMULA_DEPTH` or `MAX_FORMULA_TOKENS`.
+`evaluate` throws only when the caller is at fault: with `kind: "sheets"` for
+a sheet the workbook lacks or an expression that does not parse, with
+`kind: "limit"` for one past `MAX_FORMULA_DEPTH` or `MAX_FORMULA_TOKENS`.
 
 ## Spreadsheet semantics
 

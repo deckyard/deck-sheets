@@ -39,7 +39,7 @@ func failOnTooDeep() {
 }
 
 func testCheckDepthRefusesPastTheCap() {
-    testing.assertThrows("failOnTooDeep", ERROR_KIND);
+    testing.assertThrows("failOnTooDeep", "limit");
 }
 
 func testLocalNameStripsAPrefix() {

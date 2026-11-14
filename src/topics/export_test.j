@@ -240,6 +240,6 @@ func failOnExportingTooManyRows() {
 func testExportsRefuseASheetTooLargeToLayOut() {
     # The cap is what stops a million-row sheet from being turned into one
     # HTML string in memory.
-    testing.assertThrows("failOnExportingTooManyRows", ERROR_KIND);
+    testing.assertThrows("failOnExportingTooManyRows", "limit");
     testing.assertEqual(MAX_EXPORT_ROWS, 100000);
 }

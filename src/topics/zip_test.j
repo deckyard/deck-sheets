@@ -214,7 +214,7 @@ func testUnzipRefusesAContainerThatWouldInflateTooFar() {
     # archive.unpack cannot be bounded, so the declared sizes are summed from
     # the central directory before a byte is inflated. A 1 MB file declaring
     # 1 GiB is refused in milliseconds instead of costing a gigabyte.
-    testing.assertThrows("failOnAContainerDeclaringTooMuchContent", ERROR_KIND);
+    testing.assertThrows("failOnAContainerDeclaringTooMuchContent", "limit");
 }
 
 func testTheRefusalNamesTheSizeAndTheLimit() {
@@ -252,7 +252,7 @@ func failOnAContainerWithTooManyMembers() {
 }
 
 func testUnzipRefusesTooManyMembers() {
-    testing.assertThrows("failOnAContainerWithTooManyMembers", ERROR_KIND);
+    testing.assertThrows("failOnAContainerWithTooManyMembers", "limit");
 }
 
 func testAnOrdinaryContainerPassesTheSizeGuard() {

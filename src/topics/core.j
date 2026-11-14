@@ -34,6 +34,16 @@ func fail(message as string) {
 }
 
 /**
+ * Raise a reached cap: kind "limit", the message as `fail` writes it.
+ *
+ * @param message {string} what passed the cap
+ * @throws {Error} kind "limit", always
+ */
+func failLimit(message as string) {
+    throw Error{kind: "limit", message: $message, file: "", line: 0, col: 0};
+}
+
+/**
  * Quote a snippet of input for an error message, bounded.
  *
  * An error that quotes the offending text is far easier to act on, but a cell
@@ -59,11 +69,11 @@ func quoted(text as string) {
  *
  * @param depth {int} how deep the reader currently is
  * @param what {string} the construct being descended, for the message
- * @throws {Error} kind "sheets" when `depth` is past `MAX_NESTING`
+ * @throws {Error} kind "limit" when `depth` is past `MAX_NESTING`
  */
 func checkDepth(depth as int, what as string) {
     if ($depth > MAX_NESTING) {
-        fail($what + " nested more than " + convert.toString(MAX_NESTING) +
+        failLimit($what + " nested more than " + convert.toString(MAX_NESTING) +
             " deep; refusing to descend further");
     }
 }

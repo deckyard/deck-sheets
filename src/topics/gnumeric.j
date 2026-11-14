@@ -560,7 +560,7 @@ func readGnumericRegion(src as bytes, regionNode as Node, bounds as Ref, sofar a
     for (def r in $box.from.row..($box.to2.row + 1)) {
         for (def c in $box.from.col..($box.to2.col + 1)) {
             if ($sofar + len($out) >= MAX_SHEET_CELLS) {
-                fail("the sheet styles more than " +
+                failLimit("the sheet styles more than " +
                     convert.toString(MAX_SHEET_CELLS) + " cells");
             }
             $out[] = Styled{at: Ref{row: $r, col: $c}, style: $style};

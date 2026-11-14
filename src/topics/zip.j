@@ -120,7 +120,8 @@ func storedMember(name as string, data as bytes) {
  *
  * @param raw {bytes} the archive
  * @return {map of string to bytes} the members, keyed by path
- * @throws {Error} kind "sheets" when the archive cannot be read
+ * @throws {Error} kind "sheets" when the archive cannot be read; kind "limit"
+ *   when it declares more than this reader inflates, or `archive` reaches a cap
  * @example
  *   def parts as map of string to bytes init unzip($raw);
  */
@@ -131,6 +132,10 @@ func unzip(raw as bytes) {
     try {
         $entries = archive.unpack("zip", $raw);
     } catch (e) {
+        # archive's own caps (a member or total over its bound) stay kind "limit"
+        if ($e.kind == "limit") {
+            failLimit("not a readable ZIP container: " + $e.message);
+        }
         fail("not a readable ZIP container: " + $e.message);
     }
     for (def entry in $entries) {
@@ -151,7 +156,7 @@ func unzip(raw as bytes) {
  * than this would, and this is a size guard, not a validator.
  *
  * @param raw {bytes} the container
- * @throws {Error} kind "sheets" when it declares more than `MAX_INFLATED` bytes or
+ * @throws {Error} kind "limit" when it declares more than `MAX_INFLATED` bytes or
  *   `MAX_ENTRIES` members
  */
 func checkDeclaredSize(raw as bytes) {
@@ -161,7 +166,7 @@ func checkDeclaredSize(raw as bytes) {
     }
     def count as int init readLe16($raw, $eocd + 10);
     if ($count > MAX_ENTRIES) {
-        fail("the container declares " + convert.toString($count) +
+        failLimit("the container declares " + convert.toString($count) +
             " members, past the " + convert.toString(MAX_ENTRIES) +
             " this reader will open");
     }
@@ -173,7 +178,7 @@ func checkDeclaredSize(raw as bytes) {
         }
         $total = $total + readLe32($raw, $at + 24);
         if ($total > MAX_INFLATED) {
-            fail("the container declares at least " + convert.toString($total) +
+            failLimit("the container declares at least " + convert.toString($total) +
                 " bytes of content, past the " + convert.toString(MAX_INFLATED) +
                 " this reader will inflate; bound the input or unpack it in a " +
                 "disposable process");

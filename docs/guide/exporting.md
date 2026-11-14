@@ -7,7 +7,7 @@ HTML, JSON and PDF output for destinations that are not spreadsheets. None of
 them is read back; use ODS, XLSX or CSV for a file that has to round-trip.
 
 Every export lays out its whole result in memory and refuses a sheet of more
-than `MAX_EXPORT_ROWS` (100 000) rows. For larger sheets, see
+than `MAX_EXPORT_ROWS` (100 000) rows, with `kind: "limit"`. For larger sheets, see
 [Reading large sheets](streaming.md).
 
 ## HTML

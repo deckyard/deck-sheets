@@ -558,3 +558,12 @@ func testStyleAtRefReadsADanglingIndexAsTheDefault() {
     $s.cellStyles["A1"] = 99;
     testing.assertTrue(isPlain(styleAtRef($s, ref(0, 0))));
 }
+
+func failOnTooManySheetCells() {
+    checkSheetCells("Big", MAX_SHEET_CELLS + 1);
+}
+
+func testCheckSheetCellsRaisesKindLimitPastTheCap() {
+    checkSheetCells("Big", MAX_SHEET_CELLS);
+    testing.assertThrows("failOnTooManySheetCells", "limit");
+}

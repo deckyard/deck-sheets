@@ -176,12 +176,12 @@ export func parseFormula(source as string) {
  * is bounded too, because parsing is quadratic in it.
  *
  * @param tokens {list of Token} the whole formula
- * @throws {Error} kind "sheets" past `MAX_FORMULA_TOKENS` tokens, or either kind of
+ * @throws {Error} kind "limit" past `MAX_FORMULA_TOKENS` tokens, or either kind of
  *   nesting past `MAX_FORMULA_DEPTH`
  */
 func checkFormulaShape(tokens as list of Token) {
     if (len($tokens) > MAX_FORMULA_TOKENS) {
-        fail("the formula has " + convert.toString(len($tokens)) +
+        failLimit("the formula has " + convert.toString(len($tokens)) +
             " tokens, past the " + convert.toString(MAX_FORMULA_TOKENS) +
             " this evaluator will parse");
     }
@@ -202,7 +202,7 @@ func checkFormulaShape(tokens as list of Token) {
             else { $run = 0; }
         }
         if ($depth > MAX_FORMULA_DEPTH or $run > MAX_FORMULA_DEPTH) {
-            fail("the formula nests deeper than " +
+            failLimit("the formula nests deeper than " +
                 convert.toString(MAX_FORMULA_DEPTH) + " levels");
         }
     }

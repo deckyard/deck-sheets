@@ -170,11 +170,11 @@ def const MAX_SHEET_CELLS as int init 1000000;
  *
  * @param name {string} the sheet name, for the message
  * @param count {int} how many cells have been collected
- * @throws {Error} kind "sheets" when the count is past `MAX_SHEET_CELLS`
+ * @throws {Error} kind "limit" when the count is past `MAX_SHEET_CELLS`
  */
 func checkSheetCells(name as string, count as int) {
     if ($count > MAX_SHEET_CELLS) {
-        fail("sheet " + quoted($name) + " holds at least " + convert.toString($count) +
+        failLimit("sheet " + quoted($name) + " holds at least " + convert.toString($count) +
             " cells, past the " + convert.toString(MAX_SHEET_CELLS) +
             " a whole-sheet read keeps in memory; read it a row at a time " +
             "with openRows");
@@ -206,7 +206,7 @@ def struct Styled {
  * @param placed {list of Placed} the cells
  * @param styled {list of Styled} the styles
  * @return {Sheet} the sheet
- * @throws {Error} kind "sheets" when the name is unusable or there are too many cells
+ * @throws {Error} kind "sheets" when the name is unusable; kind "limit" when there are too many cells
  */
 func styledSheetFrom(name as string, placed as list of Placed, styled as list of Styled) {
     def out as Sheet init sheetFrom($name, $placed);
