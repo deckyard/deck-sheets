@@ -55,6 +55,8 @@ def const GNM_STRING as string init "60";
  * @param raw {bytes} the `.gnumeric` file, gzipped or not
  * @return {Workbook} the workbook
  * @throws {Error} kind "sheets" when the document is unreadable or holds no sheets
+ * @throws {Error} kind "limit" when the gzip member expands past `compress`'s
+ *   output cap
  * @example
  *   def wb as Workbook init readGnumeric(fs.readBytes("book.gnumeric"));
  */
@@ -92,7 +94,8 @@ export func readGnumeric(raw as bytes) {
  *
  * @param raw {bytes} the file
  * @return {bytes} the XML document
- * @throws {Error} kind "sheets" when the gzip member is damaged
+ * @throws {Error} kind "sheets" when the gzip member is damaged, kind
+ *   "limit" when it expands past `compress`'s output cap (256 MiB)
  */
 func gunzipIfNeeded(raw as bytes) {
     if (len($raw) < 2 or $raw[0] != 0x1f or $raw[1] != 0x8b) {
@@ -102,6 +105,10 @@ func gunzipIfNeeded(raw as bytes) {
     try {
         $out = compress.unpack("gzip", $raw);
     } catch (e) {
+        # a member that expands past compress's output cap is a reached cap
+        if (isGeneric($e.kind)) {
+            throw $e;
+        }
         fail("the file is gzipped but the member is damaged: " + $e.message);
     }
     return $out;

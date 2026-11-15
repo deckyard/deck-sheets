@@ -404,3 +404,17 @@ func testGnumericClipsAStyledRegionToTheSheet() {
     testing.assertEqual(styleAt($s, "A1").format, "0.00");
     testing.assertEqual(displayAt($s, "A1"), "1.00");
 }
+
+# A gzip member that expands past compress's output cap is a reached cap,
+# kind "limit", not a damaged file.
+func testGnumericBombIsALimit() {
+    def bomb as bytes init binary.concat(
+        compress.pack("gzip", binary.make(268435456)),
+        compress.pack("gzip", binary.make(1)));
+    try {
+        readGnumeric($bomb);
+        testing.assertTrue(false);
+    } catch (e) {
+        testing.assertEqual($e.kind, "limit");
+    }
+}

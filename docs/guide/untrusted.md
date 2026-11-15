@@ -54,7 +54,9 @@ error only when continuing would mean inventing data.
 
 Every refusal has `kind: "sheets"`, except a reached cap (`MAX_NESTING`,
 `MAX_SHEET_CELLS`, a ZIP container's member count or declared content size,
-`MAX_EXPORT_ROWS`, the formula caps), which has `kind: "limit"`. Tests cover this, including two cases that
+`MAX_EXPORT_ROWS`, the formula caps, a Gnumeric gzip member that expands past
+`compress`'s 256 MiB output cap, a row past the XML decoder's nesting or node
+cap), which has `kind: "limit"`. Tests cover this, including two cases that
 used to escape as `kind: "runtime"`: a 20-letter column name and a 40-digit
 row number overflowed `int64` during parsing, and both are now length-checked
 first.

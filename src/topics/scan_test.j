@@ -303,3 +303,24 @@ func testByteTextOfAnEmptyRange() {
     testing.assertEqual(byteText($src, 5, 3), "");
     testing.assertEqual(byteText($src, 1, 4), "row");
 }
+
+# A leaf past the XML decoder's nesting cap is a reached cap, kind "limit".
+func testDecodeLeafPassesTheDecoderCapOn() {
+    def text as string init "<row>" + strings.repeat("<a>", 1001) + strings.repeat("</a>", 1001) +
+        "</row>";
+    def src as bytes init convert.bytesFromString("utf-8", $text);
+    def node as Node init Node{
+        name: "row",
+        start: 0,
+        end: len($src),
+        openEnd: 5,
+        innerEnd: len($src) - 6,
+        closed: true
+    };
+    try {
+        decodeLeaf($src, $node);
+        testing.assertTrue(false);
+    } catch (e) {
+        testing.assertEqual($e.kind, "limit");
+    }
+}

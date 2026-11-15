@@ -884,7 +884,8 @@ func childText(src as bytes, nodes as list of Node, name as string) {
  * @param src {bytes} the whole document
  * @param node {Node} the element to decode
  * @return {xml.Value} the element as a tree
- * @throws {Error} kind "sheets" when the fragment is not well-formed XML
+ * @throws {Error} kind "sheets" when the fragment is not well-formed XML,
+ *   kind "limit" past the decoder's nesting or node cap
  */
 func decodeLeaf(src as bytes, node as Node) {
     def text as string init nodeBytes($src, $node);
@@ -892,6 +893,10 @@ func decodeLeaf(src as bytes, node as Node) {
     try {
         $tree = xml.decode($text);
     } catch (e) {
+        # the decoder's nesting and node caps are reached caps
+        if (isGeneric($e.kind)) {
+            throw $e;
+        }
         fail("<" + $node.name + "> is not well-formed: " + $e.message);
     }
     return $tree;

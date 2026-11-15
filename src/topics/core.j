@@ -65,6 +65,19 @@ func quoted(text as string) {
 }
 
 /**
+ * Whether an error kind is one every library shares, which a wrapper passes
+ * on unchanged instead of rewrapping: a reached cap, a deadline, a closed or
+ * failed connection, a cancelled task.
+ *
+ * @param kind {string} the caught error's kind
+ * @return {bool} true for "limit", "timeout", "closed", "net", "cancelled"
+ */
+func isGeneric(kind as string) {
+    return $kind == "limit" or $kind == "timeout" or $kind == "closed" or $kind == "net" or
+        $kind == "cancelled";
+}
+
+/**
  * Refuse a document that nests past `MAX_NESTING`.
  *
  * @param depth {int} how deep the reader currently is
