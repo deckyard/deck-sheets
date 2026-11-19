@@ -587,12 +587,19 @@ func fnToday() {
 }
 
 /**
- * The current instant, as a date-and-time value.
+ * The current local date and time, as a date-and-time value.
  *
- * @return {Value} the instant
+ * Spreadsheet dates are local wall-clock values, so this encodes the local
+ * time the way `fnToday` encodes the local date (as if it were UTC). Using
+ * the real UTC instant instead made `NOW()` earlier than `TODAY()` between
+ * local midnight and the UTC date change.
+ *
+ * @return {Value} the local date and time
  */
 func fnNow() {
-    return Value.Stamp{at: time.now(), dateOnly: false};
+    def now as time.Time init time.now();
+    def wall as string init time.format($now, "%Y-%m-%dT%H:%M:%S");
+    return Value.Stamp{at: time.fromIso($wall + "Z"), dateOnly: false};
 }
 
 /**
