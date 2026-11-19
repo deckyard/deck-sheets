@@ -20,3 +20,4 @@ vendor/
 .jennifer-src/
 .ci-fixtures/
 .docblocks-*/
+.check-tiny-*/
