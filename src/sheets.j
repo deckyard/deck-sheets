@@ -72,7 +72,6 @@ use json;
 import "csv.j" as csv;
 import "pdf.j" as pdf;
 
-include "topics/version.j";
 include "topics/core.j";
 include "topics/address.j";
 include "topics/value.j";

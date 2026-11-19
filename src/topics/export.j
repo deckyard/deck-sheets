@@ -365,7 +365,7 @@ export func toPdf(s as Sheet, size as PageSize) {
     def lines as list of list of Value init rows($s);
     def widths as list of float init columnWidths($s, $lines, $size);
     def doc as pdf.Document init pdf.document();
-    $doc = pdf.info($doc, "Producer", "@deckyard/sheets " + VERSION);
+    $doc = pdf.info($doc, "Producer", "@deckyard/sheets");
     $doc = pdf.info($doc, "Title", $s.name);
 
     def row as int init 0;

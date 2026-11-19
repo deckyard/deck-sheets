@@ -106,7 +106,7 @@ func odsMeta() {
         " xmlns:meta=\"urn:oasis:names:tc:opendocument:xmlns:meta:1.0\"" +
         " office:version=\"" + ODF_VERSION + "\">";
     $parts[] = tagOpen("office:meta");
-    $parts[] = tagText("meta:generator", "@deckyard/sheets " + VERSION);
+    $parts[] = tagText("meta:generator", "@deckyard/sheets");
     $parts[] = tagClose("office:meta");
     $parts[] = tagClose("office:document-meta");
     return partsBytes($parts);

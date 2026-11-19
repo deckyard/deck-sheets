@@ -139,8 +139,6 @@ through LibreOffice and Gnumeric.
   cap).
 - ODF cannot express a month's initial (`mmmmm` comes back as `mmm`) or
   `_x` / `*x` padding, so those formats change through ODS.
-- `VERSION` in the committed source lags the manifest; CI stamps it from
-  the release tag, and it is written into PDF metadata.
 
 ## Dependencies on the interpreter
 
