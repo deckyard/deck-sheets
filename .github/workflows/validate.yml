@@ -34,27 +34,10 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
 
-      - name: Resolve the interpreter image
-        run: |
-          set -euo pipefail
-          source tools/deck-lib.sh && deck_load
-          echo "JENNIFER_IMAGE=$(deck_image)" >> "$GITHUB_ENV"
-
-      - name: Pull the interpreter image
-        run: docker pull "$JENNIFER_IMAGE"
-
-      - name: Install a `jennifer` shim that runs the image
-        run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.local/bin"
-          cat > "$HOME/.local/bin/jennifer" <<'SHIM'
-          #!/usr/bin/env bash
-          exec docker run --rm --user "$(id -u):$(id -g)" \
-            --volume "${GITHUB_WORKSPACE}:/work" --workdir /work \
-            --entrypoint jennifer "${JENNIFER_IMAGE}" "$@"
-          SHIM
-          chmod +x "$HOME/.local/bin/jennifer"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # The shared action: the deck's interpreter image where the runner has
+      # Docker, the same release installed natively where it does not.
+      - name: Set up Jennifer
+        uses: ./.github/actions/setup-jennifer
 
       # Both, for different reasons. LibreOffice is what most people will
       # open the file in and is forgiving, so it proves the file is usable.
