@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - the formula parser: tokens to an expression tree.
 # Spliced into sheets.j via include - not a standalone module.
@@ -151,7 +151,7 @@ export func parseFormula(source as string) {
     # `=`, so dropping a leading one is unambiguous and saves every caller a
     # strip. Excel's `+A1` lead-in is accepted the same way, as unary plus.
     if (isLeadingEquals($tokens[0])) {
-        $tokens = lists.slice($tokens, 1, len($tokens));
+        $tokens = $tokens[1..len($tokens)];
         if (len($tokens) == 0) {
             fail("the formula is empty");
         }
@@ -443,7 +443,7 @@ func parseNamed(tokens as list of Token, from as int, name as string) {
 func canonicalName(name as string) {
     def upper as string init strings.upper($name);
     if (strings.startsWith($upper, "_XLFN.")) {
-        return strings.substring($upper, 6, len($upper));
+        return $upper[6..len($upper)];
     }
     return $upper;
 }

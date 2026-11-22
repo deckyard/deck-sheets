@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - tests for zip.j.
 # Spliced into sheets_test.j via include - not a standalone module.
@@ -12,7 +12,7 @@
  * @return {bytes} the text as UTF-8
  */
 func zipBytes(body as string) {
-    return convert.bytesFromString("utf-8", $body);
+    return encoding.encode("utf-8", $body);
 }
 
 func testZipAndUnzipRoundTrip() {
@@ -21,15 +21,15 @@ func testZipAndUnzipRoundTrip() {
     $members[] = member("styles.xml", zipBytes("<y/>"));
     def parts as map of string to bytes init unzip(zip($members));
     testing.assertEqual(len($parts), 2);
-    testing.assertEqual(convert.stringFromBytes("utf-8", $parts["content.xml"]), "<x/>");
-    testing.assertEqual(convert.stringFromBytes("utf-8", $parts["styles.xml"]), "<y/>");
+    testing.assertEqual(encoding.decode("utf-8", $parts["content.xml"]), "<x/>");
+    testing.assertEqual(encoding.decode("utf-8", $parts["styles.xml"]), "<y/>");
 }
 
 func testAStoredMemberRoundTripsToo() {
     def members as list of Member init [];
     $members[] = storedMember("mimetype", zipBytes("application/x-test"));
     def parts as map of string to bytes init unzip(zip($members));
-    testing.assertEqual(convert.stringFromBytes("utf-8", $parts["mimetype"]), "application/x-test");
+    testing.assertEqual(encoding.decode("utf-8", $parts["mimetype"]), "application/x-test");
 }
 
 func testTheFirstMemberStaysFirst() {
@@ -59,13 +59,13 @@ func testAStoredMemberIsNotCompressed() {
 
 func testADeflatedMemberIsCompressed() {
     # The same text, deflated, must not appear verbatim.
-    def body as string init strings.repeat("compress me ", 40);
+    def body as string init strings.replicate("compress me ", 40);
     def members as list of Member init [];
     $members[] = member("content.xml", zipBytes($body));
     def raw as bytes init zip($members);
     testing.assertFalse(binary.contains($raw, zipBytes($body)));
     def parts as map of string to bytes init unzip($raw);
-    testing.assertEqual(convert.stringFromBytes("utf-8", $parts["content.xml"]), $body);
+    testing.assertEqual(encoding.decode("utf-8", $parts["content.xml"]), $body);
 }
 
 func testAnEmptyMemberRoundTrips() {
@@ -88,9 +88,7 @@ func testNonAsciiMemberContentRoundTrips() {
     def members as list of Member init [];
     $members[] = member("content.xml", zipBytes("<t>café &amp; crème</t>"));
     def parts as map of string to bytes init unzip(zip($members));
-    testing.assertEqual(
-        convert.stringFromBytes("utf-8", $parts["content.xml"]),
-        "<t>café &amp; crème</t>");
+    testing.assertEqual(encoding.decode("utf-8", $parts["content.xml"]), "<t>café &amp; crème</t>");
 }
 
 func testAnEmptyArchiveIsStillReadable() {
@@ -100,12 +98,12 @@ func testAnEmptyArchiveIsStillReadable() {
 
 func testABigMemberRoundTrips() {
     # Exercises the deflate path with something past one buffer.
-    def body as string init strings.repeat("0123456789", 20000);
+    def body as string init strings.replicate("0123456789", 20000);
     def members as list of Member init [];
     $members[] = member("big.xml", zipBytes($body));
     def parts as map of string to bytes init unzip(zip($members));
     testing.assertEqual(len($parts["big.xml"]), 200000);
-    testing.assertEqual(convert.stringFromBytes("utf-8", $parts["big.xml"]), $body);
+    testing.assertEqual(encoding.decode("utf-8", $parts["big.xml"]), $body);
 }
 
 func testWritingTheSameMembersTwiceGivesTheSameBytes() {
@@ -119,7 +117,7 @@ func testWritingTheSameMembersTwiceGivesTheSameBytes() {
 }
 
 func failOnUnreadableContainer() {
-    unzip(convert.bytesFromString("utf-8", "this is not a zip file"));
+    unzip(encoding.encode("utf-8", "this is not a zip file"));
 }
 
 func testUnzipRefusesWhatIsNotAContainer() {
@@ -257,7 +255,7 @@ func testUnzipRefusesTooManyMembers() {
 
 func testAnOrdinaryContainerPassesTheSizeGuard() {
     def members as list of Member init [];
-    $members[] = member("content.xml", zipBytes(strings.repeat("<x/>", 5000)));
+    $members[] = member("content.xml", zipBytes(strings.replicate("<x/>", 5000)));
     testing.assertEqual(len(unzip(zip($members))), 1);
 }
 

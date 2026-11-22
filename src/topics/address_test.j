@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - tests for address.j.
 # Spliced into sheets_test.j via include - not a standalone module.
@@ -239,15 +239,15 @@ func testSheetRefAndSplitRoundTrip() {
 }
 
 func failOnAnOverlongColumnName() {
-    columnIndex(strings.repeat("Z", 20));
+    columnIndex(strings.replicate("Z", 20));
 }
 
 func failOnARefWithAnOverlongColumn() {
-    parseRef(strings.repeat("A", 20) + "1");
+    parseRef(strings.replicate("A", 20) + "1");
 }
 
 func failOnARefWithAnOverlongRow() {
-    parseRef("A" + strings.repeat("9", 40));
+    parseRef("A" + strings.replicate("9", 40));
 }
 
 func testAnOverlongReferenceStaysInTheDecksErrorContract() {

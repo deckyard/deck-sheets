@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - choosing a format, and the filesystem entry points.
 # Spliced into sheets.j via include - not a standalone module.
@@ -108,7 +108,7 @@ func looksLikeGnumericXml(raw as bytes) {
     }
     def opening as string init "";
     try {
-        $opening = convert.stringFromBytes("utf-8", binary.slice($raw, 0, $head));
+        $opening = encoding.decode("utf-8", $raw[..$head]);
     } catch (e) {
         return false;
     }
@@ -155,8 +155,8 @@ export func writeFormat(wb as Workbook, kind as Format) {
         when Ods { return writeOds($wb); }
         when Xlsx { return writeXlsx($wb); }
         when Gnumeric { return writeGnumeric($wb); }
-        when Csv { return convert.bytesFromString("utf-8", writeCsv($wb, "")); }
-        when Tsv { return convert.bytesFromString("utf-8", writeDelimited($wb, "", "\t")); }
+        when Csv { return encoding.encode("utf-8", writeCsv($wb, "")); }
+        when Tsv { return encoding.encode("utf-8", writeDelimited($wb, "", "\t")); }
     }
 }
 
@@ -170,7 +170,7 @@ export func writeFormat(wb as Workbook, kind as Format) {
 func utf8Text(raw as bytes) {
     def out as string init "";
     try {
-        $out = convert.stringFromBytes("utf-8", $raw);
+        $out = encoding.decode("utf-8", $raw);
     } catch (e) {
         fail("the text is not valid UTF-8; convert it first with the " +
             "encoding library");

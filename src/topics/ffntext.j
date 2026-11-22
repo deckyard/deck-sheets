@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - the text and date halves of the formula function library.
 # Spliced into sheets.j via include - not a standalone module.
@@ -293,8 +293,8 @@ func fnSubstitute(flat as list of Value) {
     if ($which > $hits) {
         return Value.Text{body: $body};
     }
-    def before as string init strings.join(lists.slice($parts, 0, $which), $needle);
-    def after as string init strings.join(lists.slice($parts, $which, len($parts)), $needle);
+    def before as string init strings.join($parts[..$which], $needle);
+    def after as string init strings.join($parts[$which..len($parts)], $needle);
     return Value.Text{body: $before + $replacement + $after};
 }
 
@@ -400,7 +400,7 @@ func fnRept(flat as list of Value) {
     if (len($body) * $times > MAX_TEXT_RESULT) {
         return Value.Err{code: ERR_VALUE};
     }
-    return Value.Text{body: strings.repeat($body, $times)};
+    return Value.Text{body: strings.replicate($body, $times)};
 }
 
 /**

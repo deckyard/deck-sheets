@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - applying a number format code to a value.
 #
@@ -446,7 +446,7 @@ func guardOf(section as string) {
     if ($close < 0) {
         return $none;
     }
-    def inside as string init strings.substring($section, 1, $close);
+    def inside as string init $section[1..$close];
     def op as string init "";
     for (def candidate in ["<=", ">=", "<>", "<", ">", "="]) {
         if (strings.startsWith($inside, $candidate)) {
@@ -459,7 +459,7 @@ func guardOf(section as string) {
     }
     def amount as float init 0.0;
     try {
-        $amount = convert.toFloat(strings.trim(strings.substring($inside, len($op), len($inside))));
+        $amount = convert.toFloat(strings.trim($inside[len($op)..len($inside)]));
     } catch (e) {
         return $none;
     }
@@ -467,7 +467,7 @@ func guardOf(section as string) {
         has: true,
         op: $op,
         value: $amount,
-        rest: strings.substring($section, $close + 1, len($section))
+        rest: $section[$close + 1..len($section)]
     };
 }
 
@@ -546,7 +546,7 @@ func isElapsedToken(inside as string) {
     if (len($inside) == 0) {
         return false;
     }
-    def first as string init strings.lower(strings.substring($inside, 0, 1));
+    def first as string init strings.lower($inside[..1]);
     if ($first != "h" and $first != "m" and $first != "s") {
         return false;
     }
@@ -1484,8 +1484,8 @@ func fractionText(
 func splitOnSlash(section as string) {
     def at as int init strings.indexOf($section, "/");
     def out as list of string init [];
-    $out[] = strings.substring($section, 0, $at);
-    $out[] = strings.substring($section, $at + 1, len($section));
+    $out[] = $section[..$at];
+    $out[] = $section[$at + 1..len($section)];
     return $out;
 }
 
@@ -1873,7 +1873,7 @@ func dateTokenText(
     locale as Locale) {
     def token as string init $tokens[$at];
     if (strings.startsWith($token, LITERAL_MARK)) {
-        return strings.substring($token, 1, len($token));
+        return $token[1..len($token)];
     }
     if (strings.startsWith($token, "[")) {
         return elapsedText($token, $serial);
@@ -1972,7 +1972,7 @@ func monthText(at as time.Time, width as int, locale as Locale) {
     }
     if ($width >= 5) {
         # `mmmmm` is the first letter, which is how a narrow column shows it.
-        return strings.substring($full, 0, 1);
+        return $full[..1];
     }
     if ($width == 4) {
         return $full;
@@ -1983,7 +1983,7 @@ func monthText(at as time.Time, width as int, locale as Locale) {
     }
     if (len($locale.months) > 0) {
         # The locale gave full names and no short ones, so cut them.
-        return strings.substring($full, 0, 3);
+        return $full[..3];
     }
     return time.format($at, "%b");
 }
@@ -2012,7 +2012,7 @@ func dayText(at as time.Time, width as int, locale as Locale) {
         return $short;
     }
     if (len($locale.days) > 0) {
-        return strings.substring($full, 0, 3);
+        return $full[..3];
     }
     return time.format($at, "%a");
 }
@@ -2076,8 +2076,8 @@ func meridiemText(token as string, hour as int) {
  * @return {string} the elapsed count
  */
 func elapsedText(token as string, serial as float) {
-    def inside as string init strings.substring($token, 1, len($token) - 1);
-    def kind as string init strings.lower(strings.substring($inside, 0, 1));
+    def inside as string init $token[1..len($token) - 1];
+    def kind as string init strings.lower($inside[..1]);
     def width as int init len($inside);
     def seconds as int init math.round(math.abs($serial) * 86400.0);
     if ($kind == "h") {

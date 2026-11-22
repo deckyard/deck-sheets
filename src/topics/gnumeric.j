@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - the Gnumeric reader and writer.
 # Spliced into sheets.j via include - not a standalone module.
@@ -222,7 +222,7 @@ func gnumericCellValue(src as bytes, cellNode as Node) {
     def valueType as string init nodeAttr($src, $cellNode, "ValueType");
     def body as string init gnumericCellText($src, $cellNode);
     if (strings.startsWith($body, "=")) {
-        return Value.Formula{source: strings.substring($body, 1, len($body)), cached: ""};
+        return Value.Formula{source: $body[1..len($body)], cached: ""};
     }
     match ($valueType) {
         when GNM_FLOAT { return gnumericNumber($body); }
@@ -745,7 +745,7 @@ func highByteOf(channel as string) {
     while (len($padded) < 4) {
         $padded = "0" + $padded;
     }
-    return strings.upper(strings.substring($padded, 0, 2));
+    return strings.upper($padded[..2]);
 }
 
 /**
@@ -760,7 +760,7 @@ func gnumericColourText(rgb as string) {
     }
     def out as list of string init [];
     for (def i in 0..3) {
-        def pair as string init strings.substring($rgb, $i * 2, $i * 2 + 2);
+        def pair as string init $rgb[$i * 2..$i * 2 + 2];
         $out[] = $pair + $pair;
     }
     return strings.join($out, ":");

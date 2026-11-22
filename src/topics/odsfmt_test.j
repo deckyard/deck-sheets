@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - tests for odsfmt.j.
 # Spliced into sheets_test.j via include - not a standalone module.
@@ -250,7 +250,7 @@ func testOdfColourLivesInThePropertiesNotTheCode() {
         "A1",
         withFormat(style(), "0.00;[Red]-0.00"));
     def raw as bytes init writeOds(addSheet(newWorkbook(), $s));
-    def content as string init convert.stringFromBytes(
+    def content as string init encoding.decode(
         "utf-8",
         writeOdsContent(addSheet(newWorkbook(), $s)));
     testing.assertTrue(strings.contains($content, "fo:color=\"#ff0000\""));
@@ -293,8 +293,6 @@ func testOdfSurvivesAMalformedStyle() {
         "<text:p>1</text:p></table:table-cell>" +
         "</table:table-row></table:table>" +
         "</office:spreadsheet></office:body></office:document-content>";
-    def s as Sheet init sheetByName(
-        readOdsContent(convert.bytesFromString("utf-8", $document)),
-        "S");
+    def s as Sheet init sheetByName(readOdsContent(encoding.encode("utf-8", $document)), "S");
     testing.assertEqual(asString(cell($s, "A1")), "1");
 }

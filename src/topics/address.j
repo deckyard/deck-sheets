@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - A1 addressing: column letters, cell references, ranges.
 # Spliced into sheets.j via include - not a standalone module.
@@ -118,7 +118,7 @@ export func columnName(col as int) {
     def n as int init $col;
     while (true) {
         def digit as int init $n % 26;
-        $name = strings.substring(COLUMN_LETTERS, $digit, $digit + 1) + $name;
+        $name = COLUMN_LETTERS[$digit..$digit + 1] + $name;
         $n = $n // 26 - 1;
         if ($n < 0) {
             break;
@@ -286,8 +286,8 @@ export func parseArea(text as string) {
         def one as Ref init parseRef($text);
         return Area{from: $one, to2: $one};
     }
-    def left as Ref init parseRef(strings.substring($text, 0, $colon));
-    def right as Ref init parseRef(strings.substring($text, $colon + 1, len($text)));
+    def left as Ref init parseRef($text[..$colon]);
+    def right as Ref init parseRef($text[$colon + 1..len($text)]);
     return area($left, $right);
 }
 
@@ -334,14 +334,14 @@ export func areaContains(box as Area, at as Ref) {
  */
 export func splitSheetRef(text as string) {
     def out as list of string init [];
-    if (len($text) > 0 and strings.substring($text, 0, 1) == "'") {
+    if (len($text) > 0 and $text[..1] == "'") {
         def closing as int init closingSheetQuote($text);
         if ($closing < 0 or $closing + 1 >= len($text) or
-            strings.substring($text, $closing + 1, $closing + 2) != "!") {
+            $text[$closing + 1..$closing + 2] != "!") {
             fail("quoted sheet name in " + quoted($text) + " is not closed by \"'!\"");
         }
-        $out[] = strings.replace(strings.substring($text, 1, $closing), "''", "'");
-        $out[] = strings.substring($text, $closing + 2, len($text));
+        $out[] = strings.replace($text[1..$closing], "''", "'");
+        $out[] = $text[$closing + 2..len($text)];
         return $out;
     }
     def bang as int init strings.indexOf($text, "!");
@@ -350,8 +350,8 @@ export func splitSheetRef(text as string) {
         $out[] = $text;
         return $out;
     }
-    $out[] = strings.substring($text, 0, $bang);
-    $out[] = strings.substring($text, $bang + 1, len($text));
+    $out[] = $text[..$bang];
+    $out[] = $text[$bang + 1..len($text)];
     return $out;
 }
 
@@ -367,8 +367,8 @@ export func splitSheetRef(text as string) {
 func closingSheetQuote(text as string) {
     def i as int init 1;
     while ($i < len($text)) {
-        if (strings.substring($text, $i, $i + 1) == "'") {
-            if ($i + 1 < len($text) and strings.substring($text, $i + 1, $i + 2) == "'") {
+        if ($text[$i..$i + 1] == "'") {
+            if ($i + 1 < len($text) and $text[$i + 1..$i + 2] == "'") {
                 $i = $i + 2;
             } else {
                 return $i;
@@ -419,5 +419,5 @@ func needsSheetQuotes(sheetName as string) {
             return true;
         }
     }
-    return strings.indexOf("0123456789", strings.substring($sheetName, 0, 1)) >= 0;
+    return strings.indexOf("0123456789", $sheetName[..1]) >= 0;
 }

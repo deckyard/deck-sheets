@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - tests for gnumeric.j.
 # Spliced into sheets_test.j via include - not a standalone module.
@@ -59,7 +59,7 @@ func testAGnumericFileIsGzipped() {
 
 func testTheDocumentDeclaresItsVersion() {
     # Gnumeric refuses a document with no <gnm:Version>.
-    def doc as string init convert.stringFromBytes("utf-8", writeGnumericXml(fixtureWorkbook()));
+    def doc as string init encoding.decode("utf-8", writeGnumericXml(fixtureWorkbook()));
     testing.assertTrue(strings.contains($doc, "<gnm:Version "));
 }
 
@@ -68,7 +68,7 @@ func testTheSheetNameIndexMatchesTheSheets() {
     # when they disagree: "inconsistent SheetNameIndex element". LibreOffice
     # does not mind, which is why this was missed until the reference
     # implementation was asked.
-    def doc as string init convert.stringFromBytes("utf-8", writeGnumericXml(fixtureWorkbook()));
+    def doc as string init encoding.decode("utf-8", writeGnumericXml(fixtureWorkbook()));
     testing.assertTrue(strings.contains($doc, "<gnm:SheetNameIndex>"));
     for (def name in sheetNames(fixtureWorkbook())) {
         testing.assertTrue(strings.contains($doc, ">" + $name + "</gnm:SheetName>"));
@@ -81,13 +81,13 @@ func testAFormulaCellCarriesNoValueTypeAttribute() {
     #   ValueType=""     LibreOffice reads the cell as blank
     #   absent           both read the formula, which is what Gnumeric writes
     # So an empty attribute is not the same as an omitted one here.
-    def doc as string init convert.stringFromBytes("utf-8", writeGnumericXml(fixtureWorkbook()));
+    def doc as string init encoding.decode("utf-8", writeGnumericXml(fixtureWorkbook()));
     testing.assertTrue(strings.contains($doc, "=B3*C2</gnm:Cell>"));
     testing.assertFalse(strings.contains($doc, "ValueType=\"\""));
 }
 
 func testANonFormulaCellStillCarriesItsType() {
-    def doc as string init convert.stringFromBytes("utf-8", writeGnumericXml(fixtureWorkbook()));
+    def doc as string init encoding.decode("utf-8", writeGnumericXml(fixtureWorkbook()));
     testing.assertTrue(strings.contains($doc, "ValueType=\"60\">Name"));
     testing.assertTrue(strings.contains($doc, "ValueType=\"40\">4"));
     testing.assertTrue(strings.contains($doc, "ValueType=\"20\">TRUE"));
@@ -201,7 +201,7 @@ func testGnumericLeavesAnUnstyledCellPlain() {
     def s as Sheet init gnumericStyleRoundTrip();
     testing.assertTrue(isPlain(styleAt($s, "B3")));
     def bare as Workbook init addSheet(newWorkbook(), sheetOf("S", [[text("a"), text("b")]]));
-    def xml as string init convert.stringFromBytes("utf-8", writeGnumericXml($bare));
+    def xml as string init encoding.decode("utf-8", writeGnumericXml($bare));
     testing.assertFalse(strings.contains($xml, "gnm:Styles"));
 }
 
@@ -210,9 +210,7 @@ func testGnumericMergesARunOfMatchingStyles() {
     # `ssconvert` writes. Three cells, one region.
     def s as Sheet init sheetOf("S", [[text("a"), text("b"), text("c")]]);
     $s = setAreaStyle($s, "A1:C1", withBold(style(), true));
-    def xml as string init convert.stringFromBytes(
-        "utf-8",
-        writeGnumericXml(addSheet(newWorkbook(), $s)));
+    def xml as string init encoding.decode("utf-8", writeGnumericXml(addSheet(newWorkbook(), $s)));
     testing.assertEqual(len(strings.split($xml, "<gnm:StyleRegion")) - 1, 1);
     testing.assertTrue(strings.contains($xml, "startCol=\"0\""));
     testing.assertTrue(strings.contains($xml, "endCol=\"2\""));
@@ -231,9 +229,7 @@ func testGnumericMergesABlockIntoOneRegion() {
         sheetOf("S", $lines),
         "A1:C4",
         withFormat(withBold(style(), true), "0.00"));
-    def xml as string init convert.stringFromBytes(
-        "utf-8",
-        writeGnumericXml(addSheet(newWorkbook(), $s)));
+    def xml as string init encoding.decode("utf-8", writeGnumericXml(addSheet(newWorkbook(), $s)));
     testing.assertEqual(len(strings.split($xml, "<gnm:StyleRegion")) - 1, 1);
     testing.assertTrue(strings.contains(
         $xml,
@@ -257,9 +253,7 @@ func testGnumericDoesNotMergeRowsThatDiffer() {
     $s = setAreaStyle($s, "A1:B1", withBold(style(), true));
     $s = setStyle($s, "A2", withBold(style(), true));
     $s = setAreaStyle($s, "A3:B3", withItalic(style(), true));
-    def xml as string init convert.stringFromBytes(
-        "utf-8",
-        writeGnumericXml(addSheet(newWorkbook(), $s)));
+    def xml as string init encoding.decode("utf-8", writeGnumericXml(addSheet(newWorkbook(), $s)));
     testing.assertEqual(len(strings.split($xml, "<gnm:StyleRegion")) - 1, 3);
     def back as Sheet init sheetByName(
         readGnumeric(writeGnumeric(addSheet(newWorkbook(), $s))),
@@ -273,9 +267,7 @@ func testGnumericDoesNotMergeAcrossAChangeOfStyle() {
     def s as Sheet init sheetOf("S", [[text("a"), text("b"), text("c")]]);
     $s = setStyle($s, "A1", withBold(style(), true));
     $s = setStyle($s, "C1", withBold(style(), true));
-    def xml as string init convert.stringFromBytes(
-        "utf-8",
-        writeGnumericXml(addSheet(newWorkbook(), $s)));
+    def xml as string init encoding.decode("utf-8", writeGnumericXml(addSheet(newWorkbook(), $s)));
     testing.assertEqual(len(strings.split($xml, "<gnm:StyleRegion")) - 1, 2);
 }
 
@@ -331,7 +323,7 @@ func testGnumericIgnoresAStyleRegionCoveringTheWholeGrid() {
         "</gnm:StyleRegion></gnm:Styles>" +
         "<gnm:Cells><gnm:Cell Row=\"0\" Col=\"0\" ValueType=\"60\">a</gnm:Cell>" +
         "</gnm:Cells></gnm:Sheet></gnm:Sheets></gnm:Workbook>";
-    def s as Sheet init sheetByName(readGnumeric(convert.bytesFromString("utf-8", $document)), "S");
+    def s as Sheet init sheetByName(readGnumeric(encoding.encode("utf-8", $document)), "S");
     testing.assertEqual(asString(cell($s, "A1")), "a");
     testing.assertTrue(isPlain(styleAt($s, "A1")));
 }
@@ -348,7 +340,7 @@ func failOnAHugeStyledRegion() {
         "</gnm:StyleRegion></gnm:Styles>" +
         "<gnm:Cells><gnm:Cell Row=\"0\" Col=\"0\" ValueType=\"40\">1</gnm:Cell>" +
         "</gnm:Cells></gnm:Sheet></gnm:Sheets></gnm:Workbook>";
-    readGnumeric(convert.bytesFromString("utf-8", $document));
+    readGnumeric(encoding.encode("utf-8", $document));
 }
 
 func testGnumericSurvivesMalformedStyleRegions() {
@@ -367,7 +359,7 @@ func testGnumericSurvivesMalformedStyleRegions() {
     ];
     for (def region in $regions) {
         def s as Sheet init sheetByName(
-            readGnumeric(convert.bytesFromString("utf-8", gnumericDocumentWith($region))),
+            readGnumeric(encoding.encode("utf-8", gnumericDocumentWith($region))),
             "S");
         testing.assertEqual(asString(cell($s, "A1")), "1");
     }
@@ -400,7 +392,7 @@ func testGnumericClipsAStyledRegionToTheSheet() {
         "</gnm:StyleRegion></gnm:Styles>" +
         "<gnm:Cells><gnm:Cell Row=\"0\" Col=\"0\" ValueType=\"40\">1</gnm:Cell>" +
         "</gnm:Cells></gnm:Sheet></gnm:Sheets></gnm:Workbook>";
-    def s as Sheet init sheetByName(readGnumeric(convert.bytesFromString("utf-8", $document)), "S");
+    def s as Sheet init sheetByName(readGnumeric(encoding.encode("utf-8", $document)), "S");
     testing.assertEqual(styleAt($s, "A1").format, "0.00");
     testing.assertEqual(displayAt($s, "A1"), "1.00");
 }

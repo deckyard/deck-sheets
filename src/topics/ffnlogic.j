@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - the conditionals and lookups.
 # Spliced into sheets.j via include - not a standalone module.
@@ -370,7 +370,7 @@ func fnCountBlank(args as list of Expr, book as Workbook, scope as Scope) {
 func matchesCriterion(candidate as Value, criterion as Value) {
     def text as string init asString($criterion);
     def symbol as string init criterionOperator($text);
-    def rest as string init strings.substring($text, len($symbol), len($text));
+    def rest as string init $text[len($symbol)..len($text)];
     def wanted as Value init criterionValue($rest);
     if ($symbol == "" or $symbol == "=") {
         return criterionEqual($candidate, $wanted);
@@ -922,8 +922,8 @@ func spanArea(body as string, book as Workbook, scope as Scope) {
     if ($colon < 0) {
         return cellArea($body);
     }
-    def leftHalf as string init strings.substring($body, 0, $colon);
-    def rightHalf as string init strings.substring($body, $colon + 1, len($body));
+    def leftHalf as string init $body[..$colon];
+    def rightHalf as string init $body[$colon + 1..len($body)];
     def box as Area init invertedArea();
     def ok as bool init true;
     try {

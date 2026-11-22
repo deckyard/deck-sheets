@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - the OpenDocument spreadsheet reader.
 # Spliced into sheets.j via include - not a standalone module.
@@ -109,7 +109,7 @@ func checkOdsMimetype(parts as map of string to bytes) {
     if (not maps.has($parts, "mimetype")) {
         return;
     }
-    def declared as string init strings.trim(convert.stringFromBytes("utf-8", $parts["mimetype"]));
+    def declared as string init strings.trim(encoding.decode("utf-8", $parts["mimetype"]));
     if ($declared != "" and $declared != ODS_MIMETYPE) {
         fail("the container declares the media type " + quoted($declared) +
             ", which is not an OpenDocument spreadsheet");
@@ -341,7 +341,7 @@ func readOdsTextProperties(st as Style, src as bytes, props as Node) {
 func odsColour(raw as string) {
     def body as string init strings.trim($raw);
     if (strings.startsWith($body, "#")) {
-        $body = strings.substring($body, 1, len($body));
+        $body = $body[1..len($body)];
     }
     if (len($body) != 6) {
         return "";
@@ -364,7 +364,7 @@ func odsColour(raw as string) {
 func odsPoints(raw as string) {
     def body as string init strings.trim($raw);
     if (strings.endsWith($body, "pt")) {
-        $body = strings.substring($body, 0, len($body) - 2);
+        $body = $body[..len($body) - 2];
     }
     if ($body == "") {
         return 0.0;
@@ -1011,7 +1011,7 @@ func parseOdsDuration(raw as string) {
     if (not strings.startsWith($body, "PT")) {
         return -1;
     }
-    $body = strings.substring($body, 2, len($body));
+    $body = $body[2..len($body)];
     def seconds as int init 0;
     def digits as string init "";
     for (def ch in strings.chars($body)) {
@@ -1194,7 +1194,7 @@ func repeatedSpaces(src as bytes, element as Node) {
     if ($count > MAX_REPEAT) {
         $count = MAX_REPEAT;
     }
-    return strings.repeat(" ", $count);
+    return strings.replicate(" ", $count);
 }
 
 /**
@@ -1216,10 +1216,10 @@ export func odsFormulaSource(raw as string) {
     def colon as int init strings.indexOf($body, ":");
     def equals as int init strings.indexOf($body, "=");
     if ($colon >= 0 and ($equals < 0 or $colon < $equals)) {
-        $body = strings.substring($body, $colon + 1, len($body));
+        $body = $body[$colon + 1..len($body)];
     }
     if (strings.startsWith($body, "=")) {
-        $body = strings.substring($body, 1, len($body));
+        $body = $body[1..len($body)];
     }
     return toA1Formula($body);
 }

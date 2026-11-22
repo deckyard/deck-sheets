@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - the OpenDocument spreadsheet writer.
 # Spliced into sheets.j via include - not a standalone module.
@@ -41,7 +41,7 @@ export func writeOds(wb as Workbook) {
         fail("cannot write a workbook with no sheets");
     }
     def members as list of Member init [];
-    $members[] = storedMember("mimetype", convert.bytesFromString("utf-8", ODS_MIMETYPE));
+    $members[] = storedMember("mimetype", encoding.encode("utf-8", ODS_MIMETYPE));
     $members[] = member("META-INF/manifest.xml", odsManifest());
     $members[] = member("content.xml", writeOdsContent($wb));
     $members[] = member("styles.xml", odsStyles());

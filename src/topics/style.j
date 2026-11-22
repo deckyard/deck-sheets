@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - how a cell looks: fonts, colours, alignment, borders, formats.
 # Spliced into sheets.j via include - not a standalone module.
@@ -238,7 +238,7 @@ export func withBackground(st as Style, rgb as string) {
 func checkedColour(rgb as string, what as string) {
     def body as string init strings.trim($rgb);
     if (strings.startsWith($body, "#")) {
-        $body = strings.substring($body, 1, len($body));
+        $body = $body[1..len($body)];
     }
     if ($body == "") {
         return "";

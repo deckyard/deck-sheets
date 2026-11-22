@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - the Office Open XML (xlsx) reader.
 # Spliced into sheets.j via include - not a standalone module.
@@ -167,7 +167,7 @@ func readRelationships(parts as map of string to bytes) {
  */
 func resolveXlPath(target as string) {
     if (strings.startsWith($target, "/")) {
-        return strings.substring($target, 1, len($target));
+        return $target[1..len($target)];
     }
     if (strings.startsWith($target, "xl/")) {
         return $target;
@@ -476,7 +476,7 @@ func sizeAttr(val as string) {
 func rgbAttr(rgb as string) {
     def body as string init strings.trim($rgb);
     if (len($body) == 8) {
-        $body = strings.substring($body, 2, 8);
+        $body = $body[2..8];
     }
     if (len($body) != 6) {
         return "";

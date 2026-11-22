@@ -142,7 +142,9 @@ through LibreOffice and Gnumeric.
 
 ## Dependencies on the interpreter
 
-- `binary`'s integer readers for the ZIP structures (0.26.0, the floor).
+- Floor `>=0.27.0`: the UTF-8 codecs of `encoding.encode` / `decode` and
+  `strings.replicate` arrived in 0.27.0.
+- `binary`'s integer readers for the ZIP structures (0.26.0).
 - The bundled `csv` and `pdf` modules, and the `archive` and `compress`
   libraries.
 - Caps as kind `"limit"` (`jennifer`'s M28.54, a reached cap is kind

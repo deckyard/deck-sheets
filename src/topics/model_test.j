@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - tests for model.j, and the fixtures the format overlays share.
 # Spliced into sheets_test.j via include - not a standalone module.
@@ -99,7 +99,7 @@ func failOnEmptySheetName() {
 }
 
 func failOnLongSheetName() {
-    newSheet(strings.repeat("x", 32));
+    newSheet(strings.replicate("x", 32));
 }
 
 func failOnSheetNameWithBracket() {
@@ -128,7 +128,7 @@ func testNewSheetRefusesANameNoApplicationAccepts() {
 }
 
 func testASheetNameOf31CharactersIsAllowed() {
-    def s as Sheet init newSheet(strings.repeat("x", 31));
+    def s as Sheet init newSheet(strings.replicate("x", 31));
     testing.assertEqual(len($s.name), 31);
 }
 

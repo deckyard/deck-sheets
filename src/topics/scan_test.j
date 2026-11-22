@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - white-box tests for the scan topic.
 #
@@ -13,7 +13,7 @@
 
 /** A string as the byte buffer the scanner works on. */
 func buffer(text as string) {
-    return convert.bytesFromString("utf-8", $text);
+    return encoding.encode("utf-8", $text);
 }
 
 /** The direct children of a document's root element. */
@@ -306,9 +306,10 @@ func testByteTextOfAnEmptyRange() {
 
 # A leaf past the XML decoder's nesting cap is a reached cap, kind "limit".
 func testDecodeLeafPassesTheDecoderCapOn() {
-    def text as string init "<row>" + strings.repeat("<a>", 1001) + strings.repeat("</a>", 1001) +
+    def text as string init "<row>" + strings.replicate("<a>", 1001) +
+        strings.replicate("</a>", 1001) +
         "</row>";
-    def src as bytes init convert.bytesFromString("utf-8", $text);
+    def src as bytes init encoding.encode("utf-8", $text);
     def node as Node init Node{
         name: "row",
         start: 0,

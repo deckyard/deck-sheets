@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - number format codes as ODF's tree of components, and back.
 #
@@ -595,7 +595,7 @@ func odfLeastDecimals(section as string) {
         return 0;
     }
     def total as int init 0;
-    for (def ch in strings.chars(strings.substring($section, $dot + 1, len($section)))) {
+    for (def ch in strings.chars($section[$dot + 1..len($section)])) {
         if ($ch == "0") {
             $total = $total + 1;
         } elseif (not isSlotChar($ch)) {
@@ -663,7 +663,7 @@ func odfDateBody(section as string) {
     for (def i in 0..len($tokens)) {
         def token as string init $tokens[$i];
         if (strings.startsWith($token, LITERAL_MARK)) {
-            $pending[] = strings.substring($token, 1, len($token));
+            $pending[] = $token[1..len($token)];
             continue;
         }
         def element as string init odfDateElement($tokens, $i);
@@ -696,7 +696,7 @@ func odfDateElement(tokens as list of string, at as int) {
         # An elapsed-time token. ODF says so with `number:truncate-on-overflow`
         # on the style rather than on the element, so the element is the plain
         # one and the attribute is added by `odfDateStyleAttrs`.
-        return odfClockElement(strings.lower(strings.substring($token, 1, 2)), len($token) - 2);
+        return odfClockElement(strings.lower($token[1..2]), len($token) - 2);
     }
     if (strings.startsWith($lower, "y")) {
         return odfDatePart("number:year", $width >= 3);
@@ -827,7 +827,7 @@ func odfGuardOf(conditions as list of string, at as int, count as int) {
     if (not strings.startsWith($raw, "value()")) {
         return "";
     }
-    return "[" + strings.substring($raw, 7, len($raw)) + "]";
+    return "[" + $raw[7..len($raw)] + "]";
 }
 
 /**
@@ -1009,7 +1009,7 @@ func odfIntegerPattern(least as int, grouped as bool) {
     if ($zeros < 1) {
         $zeros = 1;
     }
-    def body as string init strings.repeat("0", $zeros);
+    def body as string init strings.replicate("0", $zeros);
     if (not $grouped) {
         return $body;
     }
@@ -1018,7 +1018,7 @@ func odfIntegerPattern(least as int, grouped as bool) {
     if ($zeros >= 4) {
         return $body;
     }
-    return "#,##" + strings.repeat("0", $zeros);
+    return "#,##" + strings.replicate("0", $zeros);
 }
 
 /**
@@ -1036,8 +1036,8 @@ func odfDecimalPattern(places as int, least as int) {
     if ($insisted > $places) {
         $insisted = $places;
     }
-    return "." + strings.repeat("0", $insisted) +
-        strings.repeat("#", $places - $insisted);
+    return "." + strings.replicate("0", $insisted) +
+        strings.replicate("#", $places - $insisted);
 }
 
 /**
@@ -1054,7 +1054,7 @@ func odfFactorCommas(src as bytes, node as Node) {
         $factor = $factor // 1000;
         $commas = $commas + 1;
     }
-    return strings.repeat(",", $commas);
+    return strings.replicate(",", $commas);
 }
 
 /**
@@ -1074,7 +1074,7 @@ func odfScientificCodeOf(src as bytes, node as Node) {
     }
     return odfIntegerPattern($least, false) +
         odfDecimalPattern($places, $places) + "E" + $sign +
-        strings.repeat("0", $exponent);
+        strings.replicate("0", $exponent);
 }
 
 /**
@@ -1095,17 +1095,17 @@ func odfFractionCodeOf(src as bytes, node as Node) {
         def whole as int init odfCountAttr($src, $node, "min-integer-digits", 0);
         $head = "# ";
         if ($whole > 0) {
-            $head = strings.repeat("0", $whole) + " ";
+            $head = strings.replicate("0", $whole) + " ";
         }
     }
     def fixed as int init odfCountAttr($src, $node, "denominator-value", 0);
     if ($fixed > 0) {
-        return $head + strings.repeat("?", $numerator) + "/" +
+        return $head + strings.replicate("?", $numerator) + "/" +
             convert.toString($fixed);
     }
     def digits as int init odfCountAttr($src, $node, "min-denominator-digits", 1);
-    return $head + strings.repeat("?", $numerator) + "/" +
-        strings.repeat("?", $digits);
+    return $head + strings.replicate("?", $numerator) + "/" +
+        strings.replicate("?", $digits);
 }
 
 /**

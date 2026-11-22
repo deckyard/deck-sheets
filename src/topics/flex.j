@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - the formula lexer: expression text to a list of tokens.
 # Spliced into sheets.j via include - not a standalone module.
@@ -242,10 +242,10 @@ func quotedSpan(chars as list of string, at as int) {
 func unquoteFormulaText(body as string) {
     def inner as string init $body;
     if (strings.startsWith($inner, "\"")) {
-        $inner = strings.substring($inner, 1, len($inner));
+        $inner = $inner[1..len($inner)];
     }
     if (strings.endsWith($inner, "\"") and len($inner) > 0) {
-        $inner = strings.substring($inner, 0, len($inner) - 1);
+        $inner = $inner[..len($inner) - 1];
     }
     return strings.replace($inner, "\"\"", "\"");
 }

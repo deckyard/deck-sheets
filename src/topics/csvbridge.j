@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - the bridge to and from delimited text.
 # Spliced into sheets.j via include - not a standalone module.
@@ -136,7 +136,7 @@ func csvValue(field as string, typed as bool) {
 func looksNumeric(field as string) {
     def body as string init $field;
     if (strings.startsWith($body, "-") or strings.startsWith($body, "+")) {
-        $body = strings.substring($body, 1, len($body));
+        $body = $body[1..len($body)];
     }
     if ($body == "") {
         return false;
@@ -175,11 +175,11 @@ func looksLikeIsoDate(field as string) {
         return false;
     }
     for (def i in 0..4) {
-        if (strings.indexOf("0123456789", strings.substring($field, $i, $i + 1)) < 0) {
+        if (strings.indexOf("0123456789", $field[$i..$i + 1]) < 0) {
             return false;
         }
     }
-    return strings.substring($field, 4, 5) == "-";
+    return $field[4..5] == "-";
 }
 
 /**

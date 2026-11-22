@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - the XML text the writers assemble documents from.
 # Spliced into sheets.j via include - not a standalone module.
@@ -133,5 +133,5 @@ func attributeText(attrs as map of string to string) {
  *   return partsBytes($parts);
  */
 func partsBytes(parts as list of string) {
-    return convert.bytesFromString("utf-8", strings.join($parts, ""));
+    return encoding.encode("utf-8", strings.join($parts, ""));
 }

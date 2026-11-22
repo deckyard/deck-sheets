@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - the formula evaluator.
 # Spliced into sheets.j via include - not a standalone module.
@@ -816,8 +816,8 @@ func spanKeys(body as string, sheetName as string) {
         }
         return $out;
     }
-    def leftHalf as string init strings.substring($body, 0, $colon);
-    def rightHalf as string init strings.substring($body, $colon + 1, len($body));
+    def leftHalf as string init $body[..$colon];
+    def rightHalf as string init $body[$colon + 1..len($body)];
     def from as CellSpot init spotOf($leftHalf, $sheetName);
     def to2 as CellSpot init spotOf($rightHalf, $from.sheetName);
     if (not $from.ok or not $to2.ok) {
@@ -891,8 +891,8 @@ func spanValues(body as string, book as Workbook, scope as Scope) {
         $out[] = evalCellRef($body, $book, $scope);
         return $out;
     }
-    def leftHalf as string init strings.substring($body, 0, $colon);
-    def rightHalf as string init strings.substring($body, $colon + 1, len($body));
+    def leftHalf as string init $body[..$colon];
+    def rightHalf as string init $body[$colon + 1..len($body)];
     def halves as list of string init splitSheetRef($leftHalf);
     def sheetName as string init $halves[0];
     if ($sheetName == "") {

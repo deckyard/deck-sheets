@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - the ZIP container ODS and XLSX are packaged in.
 # Spliced into sheets.j via include - not a standalone module.
@@ -257,7 +257,7 @@ func partText(parts as map of string to bytes, name as string) {
         fail("the container has no " + quoted($name) + " (it holds " +
             partNameList($parts) + ")");
     }
-    return convert.stringFromBytes("utf-8", $parts[$name]);
+    return encoding.decode("utf-8", $parts[$name]);
 }
 
 /**
@@ -299,7 +299,7 @@ func zip(members as list of Member) {
     def offset as int init 0;
     for (def m in $members) {
         def encoded as bytes init memberBody($m);
-        def nameBytes as bytes init convert.bytesFromString("utf-8", $m.name);
+        def nameBytes as bytes init encoding.encode("utf-8", $m.name);
         def method as int init METHOD_DEFLATE;
         if ($m.stored) {
             $method = METHOD_STORE;

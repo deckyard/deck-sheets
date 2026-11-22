@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - tests for core.j.
 # Spliced into sheets_test.j via include - not a standalone module.
@@ -24,7 +24,7 @@ func testQuotedWrapsShortText() {
 }
 
 func testQuotedBoundsLongText() {
-    def long as string init strings.repeat("x", 500);
+    def long as string init strings.replicate("x", 500);
     def out as string init quoted($long);
     testing.assertTrue(len($out) < 100);
     testing.assertTrue(strings.contains($out, "500 characters"));

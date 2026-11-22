@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - tests for emit.j.
 # Spliced into sheets_test.j via include - not a standalone module.
@@ -55,7 +55,7 @@ func testPartsBytesJoinsAndEncodes() {
     $parts[] = tagText("t", "café & crème");
     $parts[] = tagClose("si");
     testing.assertEqual(
-        convert.stringFromBytes("utf-8", partsBytes($parts)),
+        encoding.decode("utf-8", partsBytes($parts)),
         "<si><t>café &amp; crème</t></si>");
 }
 

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - tests for numfmt.j.
 # Spliced into sheets_test.j via include - not a standalone module.
@@ -156,11 +156,11 @@ func testFormatRefusesACodeTooLongToBeReal() {
     # the scans over it are quadratic in its length: 10 000 unclosed brackets
     # measured 49 s and 100 000 commas did not finish. Past the cap the value
     # renders plainly, as every other unreadable code does.
-    def wide as string init strings.repeat("0", MAX_FORMAT_CODE + 1);
+    def wide as string init strings.replicate("0", MAX_FORMAT_CODE + 1);
     testing.assertEqual(applyFormat(number(1234.567), $wide), "1234.567");
     testing.assertEqual(MAX_FORMAT_CODE, 255);
     # And just inside the cap still works.
-    def ok as string init strings.repeat("0", MAX_FORMAT_CODE);
+    def ok as string init strings.replicate("0", MAX_FORMAT_CODE);
     testing.assertEqual(len(applyFormat(number(1.0), $ok)), MAX_FORMAT_CODE);
 }
 

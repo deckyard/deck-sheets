@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - tests for xlsxread.j.
 # Spliced into sheets_test.j via include - not a standalone module.
@@ -18,7 +18,7 @@
 func xlsxContainer(parts as map of string to string) {
     def members as list of Member init [];
     for (def path in $parts) {
-        $members[] = member($path, convert.bytesFromString("utf-8", $parts[$path]));
+        $members[] = member($path, encoding.encode("utf-8", $parts[$path]));
     }
     return zip($members);
 }
@@ -308,7 +308,7 @@ func failOnXlsxWithNoWorkbookPart() {
 }
 
 func failOnXlsxThatIsNotAContainer() {
-    readXlsx(convert.bytesFromString("utf-8", "not a zip"));
+    readXlsx(encoding.encode("utf-8", "not a zip"));
 }
 
 func failOnWorkbookListingNoSheets() {

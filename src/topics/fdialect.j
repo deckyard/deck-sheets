@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - translating formulas between the A1 and OpenFormula dialects.
 # Spliced into sheets.j via include - not a standalone module.
@@ -453,8 +453,8 @@ func bracketReference(body as string) {
     if ($colon < 0) {
         return "[" + qualifyPart($body) + "]";
     }
-    def left as string init strings.substring($body, 0, $colon);
-    def right as string init strings.substring($body, $colon + 1, len($body));
+    def left as string init $body[..$colon];
+    def right as string init $body[$colon + 1..len($body)];
     return "[" + qualifyPart($left) + ":" + qualifyPart($right) + "]";
 }
 
@@ -469,7 +469,7 @@ func bracketReference(body as string) {
 func rangeColonAt(body as string) {
     def inQuote as bool init false;
     for (def i in 0..len($body)) {
-        def ch as string init strings.substring($body, $i, $i + 1);
+        def ch as string init $body[$i..$i + 1];
         if ($ch == "'") {
             $inQuote = not $inQuote;
         } elseif ($ch == ":" and not $inQuote) {
@@ -511,7 +511,7 @@ func needsOpenFormulaQuotes(sheetName as string) {
             return true;
         }
     }
-    return isDigit(strings.substring($sheetName, 0, 1));
+    return isDigit($sheetName[..1]);
 }
 
 /**
@@ -531,8 +531,8 @@ func unbracketReference(inner as string) {
     if ($colon < 0) {
         return unqualifyPart($inner);
     }
-    def left as string init unqualifyPart(strings.substring($inner, 0, $colon));
-    def right as string init unqualifyPart(strings.substring($inner, $colon + 1, len($inner)));
+    def left as string init unqualifyPart($inner[..$colon]);
+    def right as string init unqualifyPart($inner[$colon + 1..len($inner)]);
     return $left + ":" + dropSheet($right);
 }
 
@@ -544,14 +544,14 @@ func unbracketReference(inner as string) {
  */
 func unqualifyPart(part as string) {
     if (strings.startsWith($part, ".")) {
-        return strings.substring($part, 1, len($part));
+        return $part[1..len($part)];
     }
     if (strings.startsWith($part, "'")) {
         def closing as int init closingSheetQuoteAt($part);
         if ($closing > 0 and $closing + 1 < len($part) and
-            strings.substring($part, $closing + 1, $closing + 2) == ".") {
-            return strings.substring($part, 0, $closing + 1) + "!" +
-                strings.substring($part, $closing + 2, len($part));
+            $part[$closing + 1..$closing + 2] == ".") {
+            return $part[..$closing + 1] + "!" +
+                $part[$closing + 2..len($part)];
         }
         return $part;
     }
@@ -559,8 +559,8 @@ func unqualifyPart(part as string) {
     if ($dot < 0) {
         return $part;
     }
-    return strings.substring($part, 0, $dot) + "!" +
-        strings.substring($part, $dot + 1, len($part));
+    return $part[..$dot] + "!" +
+        $part[$dot + 1..len($part)];
 }
 
 /**
@@ -572,8 +572,8 @@ func unqualifyPart(part as string) {
 func closingSheetQuoteAt(part as string) {
     def i as int init 1;
     while ($i < len($part)) {
-        if (strings.substring($part, $i, $i + 1) == "'") {
-            if ($i + 1 < len($part) and strings.substring($part, $i + 1, $i + 2) == "'") {
+        if ($part[$i..$i + 1] == "'") {
+            if ($i + 1 < len($part) and $part[$i + 1..$i + 2] == "'") {
                 $i = $i + 2;
                 continue;
             }

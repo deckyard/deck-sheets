@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - tests for rows.j.
 # Spliced into sheets_test.j via include - not a standalone module.
@@ -97,19 +97,19 @@ func testRowNumberFollowsTheSheetNotTheCount() {
     def members as list of Member init [];
     $members[] = member(
         "xl/workbook.xml",
-        convert.bytesFromString(
+        encoding.encode(
             "utf-8",
             "<workbook xmlns:r=\"r\"><sheets><sheet name=\"S\" r:id=\"rId1\"/>" +
                 "</sheets></workbook>"));
     $members[] = member(
         "xl/_rels/workbook.xml.rels",
-        convert.bytesFromString(
+        encoding.encode(
             "utf-8",
             "<Relationships><Relationship Id=\"rId1\" " +
                 "Target=\"worksheets/sheet1.xml\"/></Relationships>"));
     $members[] = member(
         "xl/worksheets/sheet1.xml",
-        convert.bytesFromString(
+        encoding.encode(
             "utf-8",
             "<worksheet><sheetData>" +
                 "<row r=\"1\"><c r=\"A1\"><v>1</v></c></row>" +
@@ -127,19 +127,19 @@ func testTheCursorFillsAGapWithinARow() {
     def members as list of Member init [];
     $members[] = member(
         "xl/workbook.xml",
-        convert.bytesFromString(
+        encoding.encode(
             "utf-8",
             "<workbook xmlns:r=\"r\"><sheets><sheet name=\"S\" r:id=\"rId1\"/>" +
                 "</sheets></workbook>"));
     $members[] = member(
         "xl/_rels/workbook.xml.rels",
-        convert.bytesFromString(
+        encoding.encode(
             "utf-8",
             "<Relationships><Relationship Id=\"rId1\" " +
                 "Target=\"worksheets/sheet1.xml\"/></Relationships>"));
     $members[] = member(
         "xl/worksheets/sheet1.xml",
-        convert.bytesFromString(
+        encoding.encode(
             "utf-8",
             "<worksheet><sheetData><row r=\"1\">" +
                 "<c r=\"A1\"><v>1</v></c><c r=\"D1\"><v>4</v></c>" +
@@ -212,7 +212,7 @@ func failOnStreamingAMissingOdsSheet() {
 }
 
 func failOnStreamingSomethingThatIsNotAContainer() {
-    openRowsFromBytes(convert.bytesFromString("utf-8", "nope"), Format.Xlsx, "");
+    openRowsFromBytes(encoding.encode("utf-8", "nope"), Format.Xlsx, "");
 }
 
 func testTheCursorRefusesWhatItCannotOpen() {

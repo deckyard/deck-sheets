@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - tests for xlsxwrite.j.
 # Spliced into sheets_test.j via include - not a standalone module.
@@ -57,7 +57,7 @@ func testTheWorkbookHasOneStyleTable() {
     $a = setStyle($a, "A1", $st);
     $b = setStyle($b, "A1", $st);
     def wb as Workbook init addSheet(addSheet(newWorkbook(), $a), $b);
-    def doc as string init convert.stringFromBytes("utf-8", unzip(writeXlsx($wb))["xl/styles.xml"]);
+    def doc as string init encoding.decode("utf-8", unzip(writeXlsx($wb))["xl/styles.xml"]);
     # The three reserved entries plus one shared style.
     testing.assertTrue(strings.contains($doc, "<cellXfs count=\"4\">"));
     def back as Workbook init readXlsx(writeXlsx($wb));
@@ -89,7 +89,7 @@ func testTheStyleTablesAreBuiltFromWhatIsUsed() {
     def s as Sheet init sheetOf("S", [[text("a"), text("b")]]);
     $s = setStyle($s, "A1", withBackground(style(), "FFF2CC"));
     $s = setStyle($s, "B1", withFormat(style(), "#,##0.00"));
-    def doc as string init convert.stringFromBytes(
+    def doc as string init encoding.decode(
         "utf-8",
         unzip(writeXlsx(addSheet(newWorkbook(), $s)))["xl/styles.xml"]);
     # Two reserved fills plus the one used; a file's own formats start at 164.

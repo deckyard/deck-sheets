@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - tests for odswrite.j.
 # Spliced into sheets_test.j via include - not a standalone module.
@@ -46,8 +46,8 @@ func testTheOdsFileIsWrittenAsOdfRequires() {
     #   30..38  the member name, which must be exactly "mimetype"
     #   38..    the media type, stored uncompressed so it is readable in place
     def raw as bytes init writeOds(fixtureWorkbook());
-    def name as bytes init convert.bytesFromString("utf-8", "mimetype");
-    def marker as bytes init convert.bytesFromString("utf-8", ODS_MIMETYPE);
+    def name as bytes init encoding.encode("utf-8", "mimetype");
+    def marker as bytes init encoding.encode("utf-8", ODS_MIMETYPE);
     testing.assertEqual(binary.indexOf($raw, $name), 30);
     testing.assertEqual(binary.indexOf($raw, $marker), 38);
 }
@@ -65,13 +65,13 @@ func testEveryWrittenPartIsWellFormedXml() {
     def parts as map of string to bytes init unzip(writeOds(fixtureWorkbook()));
     for (def name in $parts) {
         if (strings.endsWith($name, ".xml")) {
-            xml.decode(convert.stringFromBytes("utf-8", $parts[$name]));
+            xml.decode(encoding.decode("utf-8", $parts[$name]));
         }
     }
     def xlsxParts as map of string to bytes init unzip(writeXlsx(fixtureWorkbook()));
     for (def name in $xlsxParts) {
         if (strings.endsWith($name, ".xml") or strings.endsWith($name, ".rels")) {
-            xml.decode(convert.stringFromBytes("utf-8", $xlsxParts[$name]));
+            xml.decode(encoding.decode("utf-8", $xlsxParts[$name]));
         }
     }
 }
@@ -83,8 +83,8 @@ func testWritingTheSameWorkbookTwiceGivesTheSameBytes() {
     testing.assertEqual(len(writeOds($wb)), len(writeOds($wb)));
     testing.assertEqual(len(writeXlsx($wb)), len(writeXlsx($wb)));
     testing.assertEqual(
-        convert.stringFromBytes("utf-8", writeOdsContent($wb)),
-        convert.stringFromBytes("utf-8", writeOdsContent($wb)));
+        encoding.decode("utf-8", writeOdsContent($wb)),
+        encoding.decode("utf-8", writeOdsContent($wb)));
 }
 
 func failOnAnUnknownExtension() {
@@ -97,7 +97,7 @@ func failOnNoExtension() {
 
 func failOnAZipThatIsNoSpreadsheet() {
     def members as list of Member init [];
-    $members[] = member("readme.txt", convert.bytesFromString("utf-8", "hi"));
+    $members[] = member("readme.txt", encoding.encode("utf-8", "hi"));
     formatOfBytes(zip($members));
 }
 
@@ -116,16 +116,14 @@ func testOdsWritesTheFontAsAFamilyNotAReference() {
     # ignores it. `fo:font-family` needs no declaration.
     def s as Sheet init sheetOf("S", [[text("x")]]);
     $s = setStyle($s, "A1", withFont(style(), "Georgia", 12.0));
-    def doc as string init convert.stringFromBytes(
-        "utf-8",
-        writeOdsContent(addSheet(newWorkbook(), $s)));
+    def doc as string init encoding.decode("utf-8", writeOdsContent(addSheet(newWorkbook(), $s)));
     testing.assertTrue(strings.contains($doc, "fo:font-family=\"Georgia\""));
     testing.assertFalse(strings.contains($doc, "style:font-name"));
 }
 
 func testAnUnstyledOdsSheetDeclaresNoCellStyles() {
     # A plain sheet should not grow style machinery it does not use.
-    def doc as string init convert.stringFromBytes("utf-8", writeOdsContent(fixtureWorkbook()));
+    def doc as string init encoding.decode("utf-8", writeOdsContent(fixtureWorkbook()));
     testing.assertFalse(strings.contains($doc, "style:name=\"ce0x1\""));
 }
 

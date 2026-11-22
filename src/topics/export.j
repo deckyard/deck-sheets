@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.26.0
+# pragma-jennifer-version: >=0.27.0
 
 # sheets - one-way exports: HTML, PDF, and records as JSON.
 # Spliced into sheets.j via include - not a standalone module.
@@ -780,7 +780,7 @@ func hexByte(rgb as string, at as int) {
     }
     def out as int init 0;
     try {
-        $out = convert.toInt(strings.substring($rgb, $at, $at + 2), 16);
+        $out = convert.toInt($rgb[$at..$at + 2], 16);
     } catch (e) {
         return 0;
     }
