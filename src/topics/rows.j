@@ -31,6 +31,8 @@
  * @field shared {list of string} the shared string table, for XLSX
  * @field dateStyles {map of string to bool} which styles mean a date, for XLSX
  * @field date1904 {bool} whether the workbook counts dates from 1904
+ * @field namespaces {map of string to string} the prefixes declared around
+ *   the rows, for XLSX, so a row decoded on its own can resolve them
  */
 export def struct RowReader {
     src as bytes,
@@ -42,7 +44,8 @@ export def struct RowReader {
     kind as Format,
     shared as list of string,
     dateStyles as map of string to bool,
-    date1904 as bool
+    date1904 as bool,
+    namespaces as map of string to string
 };
 
 /**
@@ -139,7 +142,8 @@ func odsReaderOver(src as bytes, kind as Format) {
         kind: $kind,
         shared: [],
         dateStyles: {},
-        date1904: false
+        date1904: false,
+        namespaces: {}
     };
 }
 
@@ -241,8 +245,48 @@ func openXlsxRows(raw as bytes, sheetName as string) {
         kind: Format.Xlsx,
         shared: readSharedStrings($parts, $targets),
         dateStyles: readDateStyles($parts, $targets),
-        date1904: readDate1904($workbookPart)
+        date1904: readDate1904($workbookPart),
+        namespaces: declaredPrefixes($src, [$root, $sheetData])
     };
+}
+
+/**
+ * The namespace prefixes the open tags of some elements declare.
+ *
+ * Excel declares its extension namespaces on `<worksheet>` and writes
+ * attributes such as `x14ac:dyDescent` on nearly every `<row>`. A row cut out
+ * of the sheet and decoded on its own would have those prefixes undeclared,
+ * so their bindings are collected once here and handed to every decode.
+ * Later elements win, as an inner declaration does in the document.
+ *
+ * @param src {bytes} the whole document
+ * @param nodes {list of Node} the enclosing elements, outermost first
+ * @return {map of string to string} prefix to namespace URI
+ * @throws {Error} kind "sheets" when an open tag is not well-formed
+ */
+func declaredPrefixes(src as bytes, nodes as list of Node) {
+    def out as map of string to string init {};
+    for (def node in $nodes) {
+        def tag as string init byteText($src, $node.start, $node.openEnd);
+        if (not strings.endsWith($tag, "/>")) {
+            $tag = $tag[..len($tag) - 1] + "/>";
+        }
+        def tree as xml.Value init xml.element("empty");
+        try {
+            $tree = xml.decode($tag, $out);
+        } catch (e) {
+            if (isGeneric($e.kind)) {
+                throw $e;
+            }
+            fail("<" + $node.name + "> is not well-formed: " + $e.message);
+        }
+        for (def name in xml.attrs($tree)) {
+            if (strings.startsWith($name, "xmlns:")) {
+                $out[$name[6..]] = xml.attr($tree, $name);
+            }
+        }
+    }
+    return $out;
 }
 
 /**
@@ -323,24 +367,35 @@ func isRowElement(node as Node) {
  *   def values as list of Value init rowValues($r);
  */
 export func nextRow(r as RowReader) {
-    def out as RowReader init $r;
     def rowNode as Node init peekRow($r);
     if (not isNode($rowNode)) {
-        $out.more = false;
         fail("there is no row left to read; test with hasRow first");
     }
-    $out.at = $rowNode.end;
+    def rowIndex as int init $r.rowIndex + 1;
+    def values as list of Value init [];
     match ($r.kind) {
         when Xlsx {
-            $out.rowIndex = xlsxRowIndex($r.src, $rowNode, $r.rowIndex + 1);
-            $out.values = xlsxRowValues($r, $rowNode);
+            $rowIndex = xlsxRowIndex($r.src, $rowNode, $r.rowIndex + 1);
+            $values = xlsxRowValues($r, $rowNode);
         }
-        else {
-            $out.rowIndex = $r.rowIndex + 1;
-            $out.values = odsRowValues($r, $rowNode);
-        }
+        else { $values = odsRowValues($r, $rowNode); }
     }
-    return $out;
+    # A fresh literal rather than a changed copy of $r: `def out init $r`
+    # deep-copied the sheet's bytes, the shared strings and the date styles
+    # once per row, while fields read from an unwritten parameter are shared.
+    return RowReader{
+        src: $r.src,
+        at: $rowNode.end,
+        limit: $r.limit,
+        rowIndex: $rowIndex,
+        values: $values,
+        more: true,
+        kind: $r.kind,
+        shared: $r.shared,
+        dateStyles: $r.dateStyles,
+        date1904: $r.date1904,
+        namespaces: $r.namespaces
+    };
 }
 
 /**
@@ -388,7 +443,7 @@ func odsRowValues(r as RowReader, rowNode as Node) {
  */
 func xlsxRowValues(r as RowReader, rowNode as Node) {
     def out as list of Value init [];
-    def tree as xml.Value init decodeLeaf($r.src, $rowNode);
+    def tree as xml.Value init decodeLeaf($r.src, $rowNode, $r.namespaces);
     for (def cellNode in xml.children($tree)) {
         if (localName(xml.tag($cellNode)) != "c") {
             continue;
@@ -426,6 +481,8 @@ func xlsxTreeColumn(cellNode as xml.Value, fallback as int) {
  * The value a decoded `<c>` holds.
  *
  * The same rules as `xlsxCellValue`, read off a tree instead of bytes.
+ * Children are matched on their local names, as the scanner matches them, so
+ * a sheet written with a prefix (`<x:c><x:v>`) reads the same.
  *
  * @param cellNode {xml.Value} the decoded cell element
  * @param shared {list of string} the shared string table
@@ -442,22 +499,19 @@ func xlsxTreeCellValue(
     if (xml.hasAttr($cellNode, "t")) {
         $kind = xml.attr($cellNode, "t");
     }
-    def rawValue as string init "";
-    if (xml.has($cellNode, "v")) {
-        $rawValue = xml.text(xml.get($cellNode, "v"));
-    }
+    def rawValue as string init treeChildText($cellNode, "v");
     def inline as string init "";
-    if (xml.has($cellNode, "is/t")) {
-        $inline = xml.text(xml.get($cellNode, "is/t"));
+    if (xml.has($cellNode, "*:is")) {
+        $inline = treeRunText(xml.get($cellNode, "*:is"));
     }
-    if (xml.has($cellNode, "f")) {
+    if (xml.has($cellNode, "*:f")) {
         def cached as string init $rawValue;
         if ($kind == "s") {
             $cached = sharedString($shared, $rawValue);
         } elseif ($kind == "inlineStr") {
             $cached = $inline;
         }
-        return Value.Formula{source: xml.text(xml.get($cellNode, "f")), cached: $cached};
+        return Value.Formula{source: treeChildText($cellNode, "f"), cached: $cached};
     }
     match ($kind) {
         when "s" { return xlsxSharedValue($shared, $rawValue); }
@@ -468,6 +522,63 @@ func xlsxTreeCellValue(
         when "d" { return xlsxIsoDateValue($rawValue); }
         else { return xlsxTreeNumberValue($cellNode, $rawValue, $dateStyles, $date1904); }
     }
+}
+
+/**
+ * The text of a decoded element's child, matched on its local name.
+ *
+ * @param node {xml.Value} the element
+ * @param name {string} the child's local name
+ * @return {string} the child's text, or `""` when there is no such child
+ */
+func treeChildText(node as xml.Value, name as string) {
+    def path as string init "*:" + $name;
+    if (not xml.has($node, $path)) {
+        return "";
+    }
+    return xml.text(xml.get($node, $path));
+}
+
+/**
+ * The text of a decoded `<is>` or `<si>`: its `<t>`, or all its runs joined.
+ *
+ * A partly formatted string is split into `<r>` runs, each with its own
+ * `<t>`, as `sharedStringText` reads them from bytes.
+ *
+ * @param entry {xml.Value} the element
+ * @return {string} the text
+ */
+func treeRunText(entry as xml.Value) {
+    def parts as list of string init [];
+    for (def child in xml.children($entry)) {
+        def tag as string init localName(xml.tag($child));
+        if ($tag == "t") {
+            $parts[] = xml.text($child);
+        } elseif ($tag == "r") {
+            $parts[] = treeChildText($child, "t");
+        }
+    }
+    return strings.join($parts, "");
+}
+
+/**
+ * An integer attribute of a decoded element, or `-1`.
+ *
+ * @param node {xml.Value} the element
+ * @param name {string} the attribute
+ * @return {int} the value, or `-1` when it is absent or unreadable
+ */
+func treeIndexAttr(node as xml.Value, name as string) {
+    if (not xml.hasAttr($node, $name)) {
+        return -1;
+    }
+    def out as int init -1;
+    try {
+        $out = convert.toInt(strings.trim(xml.attr($node, $name)));
+    } catch (e) {
+        return -1;
+    }
+    return $out;
 }
 
 /**

@@ -150,6 +150,13 @@ The zero value is `Empty`, which is also what an absent cell reads as.
 | `addSheet(wb as Workbook, s as Sheet)` | Append; throws on a duplicate name |
 | `removeSheet(wb as Workbook, name as string)` | Remove; throws on the last sheet |
 | `renameSheet(wb as Workbook, from as string, to2 as string)` | Rename in place |
+| `setColumnWidth(s as Sheet, column as string, width as float)` | A column's width in characters; `0.0` returns it to the default |
+| `columnWidth(s as Sheet, column as string)` | A column's width, `0.0` for the default |
+| `freezePanes(s as Sheet, rows as int, columns as int)` | Keep the top rows and left columns in view; `0, 0` unfreezes |
+
+| Constant | Value | Meaning |
+| --- | --- | --- |
+| `MAX_COLUMN_WIDTH` | 255.0 | The widest column XLSX allows, in characters |
 
 ### `Sheet`
 
@@ -164,6 +171,18 @@ the canonical A1 spelling `cellRef` produces.
 | `styles as list of Style` | interned styles, index 0 the default |
 | `rowCount as int` | one past the highest row index used |
 | `colCount as int` | one past the highest column index used |
+| `layout as SheetLayout` | column widths and frozen panes |
+
+### `SheetLayout`
+
+How the sheet is shown. XLSX and ODS carry it; Gnumeric and CSV do not.
+Widths are kept for the columns inside the sheet's extent when a file is read.
+
+| Field | What it holds |
+| --- | --- |
+| `columnWidths as map of string to float` | width per column name (`"B"`), in characters of the default font (ODS: 5.25 pt each) |
+| `frozenRows as int` | rows kept in view at the top, 0 for none |
+| `frozenColumns as int` | columns kept in view at the left, 0 for none |
 
 ### `Workbook`
 
@@ -263,6 +282,7 @@ Treat it as opaque and use the functions above.
 | `shared as list of string` | XLSX shared string table |
 | `dateStyles as map of string to bool` | XLSX styles that mean a date |
 | `date1904 as bool` | the workbook's date system |
+| `namespaces as map of string to string` | XLSX namespace prefixes declared around the rows |
 
 ## OpenDocument
 
@@ -284,6 +304,7 @@ Treat it as opaque and use the functions above.
 | --- | --- |
 | `readXlsx(raw as bytes)` | Read an XLSX container |
 | `writeXlsx(wb as Workbook)` | Write an XLSX container |
+| `patchXlsx(raw as bytes, sheetName as string, changes as map of string to Value)` | Set cells of an existing file, every other byte left as it was |
 
 ## Gnumeric
 

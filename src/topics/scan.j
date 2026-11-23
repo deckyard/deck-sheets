@@ -490,18 +490,10 @@ func isCloseEnd(src as bytes, at as int, limit as int) {
 /**
  * The offset of the next occurrence of a probe, inside a range.
  *
- * `binary.indexOf` has no limit argument and searches to the end of the
- * buffer, so a probe that is *not* in the range still costs a scan of
- * everything after it. That is invisible until something probes a short
- * range many times: reading 3 000 Gnumeric style regions, each asking a
- * dozen times whether an attribute is present, turned a 110 KB document into
- * hundreds of megabytes of scanning and made the read superlinear in the
- * file's size.
- *
- * So a short range is copied out and searched on its own. The copy is what
- * bounds the work, and it is only worth it while the range is small - over
- * `BOUNDED_SEARCH` the copy would cost more than the overscan, and the
- * callers that search a whole document fall through to the plain search.
+ * The search must stop at `limit`: a probe that is not in the range would
+ * otherwise cost a scan of everything after it, which made reading 3 000
+ * Gnumeric style regions superlinear in the file's size. `binary.indexOf`
+ * takes the window itself, so nothing is copied out to bound it.
  *
  * @param src {bytes} the buffer to search
  * @param probe {bytes} the bytes to find
@@ -513,28 +505,8 @@ func indexOfByte(src as bytes, probe as bytes, from as int, limit as int) {
     if ($from < 0 or $from >= $limit) {
         return -1;
     }
-    if ($limit - $from <= BOUNDED_SEARCH and $limit < len($src)) {
-        def found as int init binary.indexOf($src[$from..$limit], $probe, 0);
-        if ($found < 0) {
-            return -1;
-        }
-        return $from + $found;
-    }
-    def found as int init binary.indexOf($src, $probe, $from);
-    if ($found < 0 or $found >= $limit) {
-        return -1;
-    }
-    return $found;
+    return binary.indexOf($src, $probe, $from, math.min($limit, len($src)));
 }
-
-/**
- * How short a range has to be before it is copied out to search it.
- *
- * An element's open tag is tens or hundreds of bytes, so every attribute
- * probe lands well inside this. A row or a whole document does not, and
- * copying one of those to search it would be the more expensive mistake.
- */
-def const BOUNDED_SEARCH as int init 4096;
 
 /**
  * Whether a probe stands at an offset.
@@ -883,15 +855,17 @@ func childText(src as bytes, nodes as list of Node, name as string) {
  *
  * @param src {bytes} the whole document
  * @param node {Node} the element to decode
+ * @param namespaces {map of string to string} the prefixes declared outside
+ *   the element, prefix to URI, so the fragment can use them
  * @return {xml.Value} the element as a tree
  * @throws {Error} kind "sheets" when the fragment is not well-formed XML,
  *   kind "limit" past the decoder's nesting or node cap
  */
-func decodeLeaf(src as bytes, node as Node) {
+func decodeLeaf(src as bytes, node as Node, namespaces as map of string to string) {
     def text as string init nodeBytes($src, $node);
     def tree as xml.Value init xml.element("empty");
     try {
-        $tree = xml.decode($text);
+        $tree = xml.decode($text, $namespaces);
     } catch (e) {
         # the decoder's nesting and node caps are reached caps
         if (isGeneric($e.kind)) {

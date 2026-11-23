@@ -319,7 +319,7 @@ func testDecodeLeafPassesTheDecoderCapOn() {
         closed: true
     };
     try {
-        decodeLeaf($src, $node);
+        decodeLeaf($src, $node, {});
         testing.assertTrue(false);
     } catch (e) {
         testing.assertEqual($e.kind, "limit");

@@ -154,6 +154,42 @@ func testTheCursorFillsAGapWithinARow() {
     testing.assertEqual(asNumber($values[3]), 4.0);
 }
 
+func testTheCursorReadsRowsWithExtensionAttributes() {
+    # Excel 2010 and later declare x14ac on <worksheet> and write
+    # x14ac:dyDescent on nearly every row, so a row decoded on its own must
+    # still see the declaration.
+    def members as list of Member init [];
+    $members[] = member(
+        "xl/workbook.xml",
+        encoding.encode(
+            "utf-8",
+            "<workbook xmlns:r=\"r\"><sheets><sheet name=\"S\" r:id=\"rId1\"/>" +
+                "</sheets></workbook>"));
+    $members[] = member(
+        "xl/_rels/workbook.xml.rels",
+        encoding.encode(
+            "utf-8",
+            "<Relationships><Relationship Id=\"rId1\" " +
+                "Target=\"worksheets/sheet1.xml\"/></Relationships>"));
+    $members[] = member(
+        "xl/worksheets/sheet1.xml",
+        encoding.encode(
+            "utf-8",
+            "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" " +
+                "xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" " +
+                "xmlns:x14ac=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac\" " +
+                "mc:Ignorable=\"x14ac\"><sheetData>" +
+                "<row r=\"1\" spans=\"1:2\" x14ac:dyDescent=\"0.35\">" +
+                "<c r=\"A1\"><v>1</v></c><c r=\"B1\"><v>2</v></c></row>" +
+                "</sheetData></worksheet>"));
+    def r as RowReader init openRowsFromBytes(zip($members), Format.Xlsx, "S");
+    $r = nextRow($r);
+    def values as list of Value init rowValues($r);
+    testing.assertEqual(len($values), 2);
+    testing.assertEqual(asNumber($values[1]), 2.0);
+    testing.assertFalse(hasRow($r));
+}
+
 func testAnEmptySheetNameTakesTheFirstSheet() {
     def raw as bytes init writeOds(fixtureWorkbook());
     def r as RowReader init openRowsFromBytes($raw, Format.Ods, "");
