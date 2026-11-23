@@ -109,37 +109,26 @@ func collectSharedStrings(wb as Workbook) {
 /**
  * The texts one sheet contributes to the shared table.
  *
+ * Only a plain text cell uses the shared table, the empty text included:
+ * every `Text` is written as `t="s"`, so each one needs its entry. A
+ * formula's cached string result is written inline, because it belongs to
+ * the formula rather than being data in its own right.
+ *
  * @param s {Sheet} the sheet
- * @return {list of string} the non-empty texts, in row-major order
+ * @return {list of string} the texts, in row-major order
  */
 func sharedStringsOf(s as Sheet) {
     def out as list of string init [];
     for (def line in rows($s)) {
-        for (def v in $line) {
-            def body as string init sharedStringBody($v);
-            if ($body != "") {
-                $out[] = $body;
+        for (def cell in $line) {
+            def v as Value init $cell;
+            match ($v) {
+                when Text(t) { $out[] = $t.body; }
+                else { continue; }
             }
         }
     }
     return $out;
-}
-
-/**
- * The text a value contributes to the shared table, if any.
- *
- * Only a plain text cell uses the shared table. A formula's cached string
- * result is written inline, because it belongs to the formula rather than
- * being data in its own right.
- *
- * @param v {Value} the value
- * @return {string} the text, or `""` when the value does not use the table
- */
-func sharedStringBody(v as Value) {
-    match ($v) {
-        when Text(t) { return $t.body; }
-        else { return ""; }
-    }
 }
 
 /**
@@ -237,7 +226,7 @@ func formatKey(sheetIndex as int, local as int) {
  * @param formats {XlsxFormats} the merged table
  * @param sheetIndex {int} the sheet's position
  * @param local {int} the cell's index in the sheet's style table, `-1` for none
- * @param st {Style} the style at that index
+ * @param styles {list of Style} the sheet's style table
  * @param v {Value} the cell's value
  * @return {string} the index, as the `s` attribute's text
  */
@@ -245,15 +234,15 @@ func xlsxStyleIndex(
     formats as XlsxFormats,
     sheetIndex as int,
     local as int,
-    st as Style,
+    styles as list of Style,
     v as Value) {
     def mapped as string init formatKey($sheetIndex, $local);
-    if ($local <= 0 or not maps.has($formats.indexOf, $mapped)) {
+    if ($local <= 0 or $local >= len($styles) or not maps.has($formats.indexOf, $mapped)) {
         return defaultStyleIndex($v);
     }
     # A style with no number format of its own still needs a date one when the
     # cell holds a date, or the serial would show.
-    if (isDateValue($v) and not isDateFormat($st)) {
+    if (isDateValue($v) and not isDateFormat($styles[$local])) {
         return defaultStyleIndex($v);
     }
     return convert.toString($formats.indexOf[$mapped]);
@@ -479,7 +468,10 @@ func xlsxStyles(formats as XlsxFormats) {
 }
 
 /**
- * The distinct number format codes the styles use.
+ * The distinct number format codes the styles use and the file must define.
+ *
+ * A code Excel has built in (`@`, `0.00`, ...) is written by its id instead,
+ * as Excel writes it, so it needs no entry of its own.
  *
  * @param styles {list of Style} the workbook's styles
  * @return {list of string} the codes, in first-seen order
@@ -487,7 +479,10 @@ func xlsxStyles(formats as XlsxFormats) {
 func distinctFormats(styles as list of Style) {
     def out as list of string init [];
     for (def st in $styles) {
-        if ($st.format != "" and not lists.contains($out, $st.format)) {
+        if ($st.format == "" or builtinFormatId($st.format) >= 0) {
+            continue;
+        }
+        if (not lists.contains($out, $st.format)) {
             $out[] = $st.format;
         }
     }
@@ -760,6 +755,9 @@ func xlsxCellXf(
     def attrs as map of string to string init {};
     def numFmtId as int init 0;
     if ($st.format != "") {
+        $numFmtId = builtinFormatId($st.format);
+    }
+    if ($numFmtId < 0) {
         $numFmtId = XLSX_FIRST_NUMFMT + stringIndex($numFmts, $st.format);
     }
     $attrs["numFmtId"] = convert.toString($numFmtId);
@@ -922,25 +920,38 @@ func xlsxWorksheet(
     $parts[] = XML_DECLARATION;
     $parts[] = "<worksheet xmlns=\"" + XLSX_NS + "\">";
     $parts[] = tagEmpty("dimension", {"ref": areaRef(extent($s))});
+    # The schema's order: sheetViews, then cols, then sheetData.
+    $parts[] = xlsxSheetViews($s.layout);
+    $parts[] = xlsxCols($s.layout);
     $parts[] = tagOpen("sheetData");
     def lines as list of list of Value init rows($s);
+    def columns as list of string init columnNames($s.colCount);
     for (def r in 0..len($lines)) {
         # The style lookups stay in this loop: a helper handed the sheet once
         # per row copied it every time, which made a large sheet quadratic.
+        # Each reference is spelled once, from the column names and the row
+        # number, rather than rebuilt by cellRef for every use.
+        def rowText as string init convert.toString($r + 1);
         def styleIndices as list of string init [];
         for (def c in 0..len($lines[$r])) {
-            def key as string init cellRef(Ref{row: $r, col: $c});
+            def key as string init $columns[$c] + $rowText;
             def local as int init -1;
-            def st as Style init style();
             if (maps.has($s.cellStyles, $key)) {
                 $local = $s.cellStyles[$key];
             }
-            if ($local > 0 and $local < len($s.styles)) {
-                $st = $s.styles[$local];
-            }
-            $styleIndices[] = xlsxStyleIndex($formats, $sheetIndex, $local, $st, $lines[$r][$c]);
+            $styleIndices[] = xlsxStyleIndex(
+                $formats,
+                $sheetIndex,
+                $local,
+                $s.styles,
+                $lines[$r][$c]);
         }
-        def line as string init xlsxRowMarkup($lines[$r], $styleIndices, $r, $shared, $date1904);
+        def line as string init xlsxRowMarkup(
+            $lines[$r],
+            $styleIndices,
+            RowSpelling{columns: $columns, row: $rowText},
+            $shared,
+            $date1904);
         if ($line != "") {
             $parts[] = $line;
         }
@@ -951,6 +962,82 @@ func xlsxWorksheet(
 }
 
 /**
+ * The `<sheetViews>` that freeze a sheet's panes.
+ *
+ * @param layout {SheetLayout} the layout
+ * @return {string} the element, or `""` when nothing is frozen
+ */
+func xlsxSheetViews(layout as SheetLayout) {
+    def rows as int init $layout.frozenRows;
+    def columns as int init $layout.frozenColumns;
+    if ($rows == 0 and $columns == 0) {
+        return "";
+    }
+    def pane as map of string to string init {
+        "topLeftCell": cellRef(Ref{row: $rows, col: $columns}),
+        "state": "frozen"
+    };
+    if ($columns > 0) {
+        $pane["xSplit"] = convert.toString($columns);
+    }
+    if ($rows > 0) {
+        $pane["ySplit"] = convert.toString($rows);
+    }
+    # The pane that scrolls: below and right of the frozen part.
+    def active as string init "bottomRight";
+    if ($columns == 0) {
+        $active = "bottomLeft";
+    } elseif ($rows == 0) {
+        $active = "topRight";
+    }
+    $pane["activePane"] = $active;
+    return tagOpen("sheetViews") +
+        tagOpenWith("sheetView", {"workbookViewId": "0"}) +
+        tagEmpty("pane", $pane) +
+        tagEmpty("selection", {"pane": $active}) +
+        tagClose("sheetView") + tagClose("sheetViews");
+}
+
+/**
+ * The `<cols>` that give columns their widths.
+ *
+ * @param layout {SheetLayout} the layout
+ * @return {string} the element, or `""` when every column has the default
+ */
+func xlsxCols(layout as SheetLayout) {
+    def columns as list of int init widenedColumns($layout);
+    if (len($columns) == 0) {
+        return "";
+    }
+    def parts as list of string init [];
+    $parts[] = tagOpen("cols");
+    for (def c in $columns) {
+        def number as string init convert.toString($c + 1);
+        $parts[] = tagEmpty(
+            "col",
+            {
+                "min": $number,
+                "max": $number,
+                "width": numberAttr($layout.columnWidths[columnName($c)]),
+                "customWidth": "1"
+            });
+    }
+    $parts[] = tagClose("cols");
+    return strings.join($parts, "");
+}
+
+/**
+ * How a row's cells are addressed: the column letters and the row number.
+ *
+ * @field columns {list of string} the column names, by index
+ * @field row {string} the one-based row number, as text
+ */
+def struct RowSpelling {
+    columns as list of string,
+    row as string
+};
+
+/**
  * One `<row>`, holding only the cells that are not empty.
  *
  * Unlike ODS, the format needs no run-length encoding for a gap: a cell
@@ -959,7 +1046,7 @@ func xlsxWorksheet(
  *
  * @param line {list of Value} the row's values, left to right
  * @param styleIndices {list of string} the `cellXfs` index per column
- * @param row {int} the zero-based row index
+ * @param at {RowSpelling} the column names and the row number, as written
  * @param shared {SharedStrings} the shared string table
  * @param date1904 {bool} whether the workbook uses the 1904 date system
  * @return {string} the row element, or `""` when the row is empty
@@ -967,7 +1054,7 @@ func xlsxWorksheet(
 func xlsxRowMarkup(
     line as list of Value,
     styleIndices as list of string,
-    row as int,
+    at as RowSpelling,
     shared as SharedStrings,
     date1904 as bool) {
     def cells as list of string init [];
@@ -980,7 +1067,7 @@ func xlsxRowMarkup(
         # background or a border.
         if (not isEmpty($line[$c]) or $styleIndex != XF_GENERAL) {
             $cells[] = xlsxCellMarkup(
-                Ref{row: $row, col: $c},
+                $at.columns[$c] + $at.row,
                 $line[$c],
                 $styleIndex,
                 $shared,
@@ -990,14 +1077,14 @@ func xlsxRowMarkup(
     if (len($cells) == 0) {
         return "";
     }
-    return tagOpenWith("row", {"r": convert.toString($row + 1)}) +
+    return tagOpenWith("row", {"r": $at.row}) +
         strings.join($cells, "") + tagClose("row");
 }
 
 /**
  * One `<c>` cell element.
  *
- * @param at {Ref} where the cell sits
+ * @param ref {string} where the cell sits, in A1 form
  * @param v {Value} the value
  * @param styleIndex {string} the `cellXfs` index to point at
  * @param shared {SharedStrings} the shared string table
@@ -1005,12 +1092,12 @@ func xlsxRowMarkup(
  * @return {string} the cell element
  */
 func xlsxCellMarkup(
-    at as Ref,
+    ref as string,
     v as Value,
     styleIndex as string,
     shared as SharedStrings,
     date1904 as bool) {
-    def attrs as map of string to string init {"r": cellRef($at)};
+    def attrs as map of string to string init {"r": $ref};
     if ($styleIndex != XF_GENERAL) {
         $attrs["s"] = $styleIndex;
     }
@@ -1091,13 +1178,16 @@ func xlsxFormulaCell(attrs as map of string to string, source as string, cached 
  *
  * @param shared {SharedStrings} the table
  * @param body {string} the string
- * @return {int} the index, or 0 when the string is absent
+ * @return {int} the index
+ * @throws {Error} kind "sheets" when the string is not in the table: the
+ *   table is built from the same cells, so that is a bug, and pointing the
+ *   cell at another entry would show the wrong text
  */
 func sharedIndex(shared as SharedStrings, body as string) {
-    if (maps.has($shared.index, $body)) {
-        return $shared.index[$body];
+    if (not maps.has($shared.index, $body)) {
+        fail("the text " + quoted($body) + " is missing from the shared string table");
     }
-    return 0;
+    return $shared.index[$body];
 }
 
 /**

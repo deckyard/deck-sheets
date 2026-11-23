@@ -40,6 +40,42 @@ func testAWrittenXlsxCarriesTheRequiredParts() {
     }
 }
 
+func testAnEmptyTextIsNotTheFirstSharedString() {
+    # "" used to be left out of the shared table and its cell pointed at
+    # entry 0, so it showed the first string of the workbook. Read back, an
+    # empty text is an empty cell, as in every format.
+    def s as Sheet init sheetOf("S", [[text("Header")], [text("")]]);
+    def back as Workbook init readXlsx(writeXlsx(addSheet(newWorkbook(), $s)));
+    testing.assertEqual(cellAt(sheetByName($back, "S"), Ref{row: 1, col: 0}), empty());
+}
+
+func testATextMissingFromTheSharedTableIsRefused() {
+    testing.assertThrows("lookUpAMissingSharedString", ERROR_KIND);
+}
+
+func lookUpAMissingSharedString() {
+    sharedIndex(SharedStrings{texts: ["a"], index: {"a": 0}}, "b");
+}
+
+func testABuiltInFormatIsWrittenByItsId() {
+    # As Excel writes them: Text is id 49, "0.00" id 2, with no <numFmt>.
+    def s as Sheet init sheetOf("S", [[text("a"), number(1.5), number(2.0)]]);
+    $s = setStyle($s, "A1", withFormat(style(), "@"));
+    $s = setStyle($s, "B1", withFormat(style(), "0.00"));
+    $s = setStyle($s, "C1", withFormat(style(), "dd/mm/yyyy"));
+    def raw as bytes init writeXlsx(addSheet(newWorkbook(), $s));
+    def doc as string init encoding.decode("utf-8", unzip($raw)["xl/styles.xml"]);
+    testing.assertTrue(strings.contains($doc, "numFmtId=\"49\""));
+    testing.assertTrue(strings.contains($doc, "numFmtId=\"2\""));
+    testing.assertFalse(strings.contains($doc, "formatCode=\"@\""));
+    # A date code is the file's own: a built-in date id is drawn per locale.
+    testing.assertTrue(strings.contains($doc, "formatCode=\"dd/mm/yyyy\""));
+    def back as Sheet init sheetByName(readXlsx($raw), "S");
+    testing.assertEqual(styleAt($back, "A1").format, "@");
+    testing.assertEqual(styleAt($back, "B1").format, "0.00");
+    testing.assertEqual(styleAt($back, "C1").format, "dd/mm/yyyy");
+}
+
 func testXlsxKeepsEveryStyleProperty() {
     def s as Sheet init sheetOf("S", [[text("styled")]]);
     $s = setStyle($s, "A1", fixtureStyle());
@@ -88,14 +124,14 @@ func testAStyleWithItsOwnDateFormatIsKept() {
 func testTheStyleTablesAreBuiltFromWhatIsUsed() {
     def s as Sheet init sheetOf("S", [[text("a"), text("b")]]);
     $s = setStyle($s, "A1", withBackground(style(), "FFF2CC"));
-    $s = setStyle($s, "B1", withFormat(style(), "#,##0.00"));
+    $s = setStyle($s, "B1", withFormat(style(), "#,##0.000"));
     def doc as string init encoding.decode(
         "utf-8",
         unzip(writeXlsx(addSheet(newWorkbook(), $s)))["xl/styles.xml"]);
     # Two reserved fills plus the one used; a file's own formats start at 164.
     testing.assertTrue(strings.contains($doc, "<fills count=\"3\">"));
     testing.assertTrue(strings.contains($doc, "numFmtId=\"164\""));
-    testing.assertTrue(strings.contains($doc, "formatCode=\"#,##0.00\""));
+    testing.assertTrue(strings.contains($doc, "formatCode=\"#,##0.000\""));
     # Excel ignores a property the xf does not claim to apply.
     testing.assertTrue(strings.contains($doc, "applyFill=\"1\""));
     testing.assertTrue(strings.contains($doc, "applyNumberFormat=\"1\""));
@@ -109,4 +145,34 @@ func testStylesCrossBetweenTheFormats() {
     def got as Style init styleAt(sheetByName($andBack, "S"), "A1");
     # Everything but the exact format code, which ODF cannot carry verbatim.
     assertStyleSurvived($got, fixtureStyle(), false);
+}
+
+func testXlsxKeepsColumnWidthsAndFrozenPanes() {
+    def s as Sheet init sheetOf("S", [[text("a"), text("b"), text("c")]]);
+    $s = setColumnWidth($s, "A", 30.0);
+    $s = setColumnWidth($s, "C", 8.25);
+    $s = freezePanes($s, 1, 1);
+    def raw as bytes init writeXlsx(addSheet(newWorkbook(), $s));
+    def doc as string init encoding.decode("utf-8", unzip($raw)["xl/worksheets/sheet1.xml"]);
+    # The schema's order, or Excel repairs the file.
+    testing.assertTrue(strings.indexOf($doc, "<sheetViews>") < strings.indexOf($doc, "<cols>"));
+    testing.assertTrue(strings.indexOf($doc, "<cols>") < strings.indexOf($doc, "<sheetData>"));
+    def back as Sheet init sheetByName(readXlsx($raw), "S");
+    testing.assertEqual($back.layout, $s.layout);
+}
+
+func testOdsKeepsColumnWidthsAndFrozenPanes() {
+    def s as Sheet init sheetOf("S", [[text("a"), text("b"), text("c")]]);
+    $s = setColumnWidth($s, "B", 30.0);
+    $s = setColumnWidth($s, "C", 8.25);
+    $s = freezePanes($s, 2, 0);
+    def raw as bytes init writeOds(addSheet(newWorkbook(), $s));
+    testing.assertTrue(maps.has(unzip($raw), "settings.xml"));
+    def back as Sheet init sheetByName(readOds($raw), "S");
+    testing.assertEqual($back.layout, $s.layout);
+}
+
+func testAnUnfrozenOdsHasNoSettingsPart() {
+    def raw as bytes init writeOds(addSheet(newWorkbook(), sheetOf("S", [[text("a")]])));
+    testing.assertFalse(maps.has(unzip($raw), "settings.xml"));
 }

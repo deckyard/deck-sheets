@@ -2245,6 +2245,29 @@ export func builtinFormat(id as int) {
 }
 
 /**
+ * The built-in `numFmtId` that writes a format code, if one does.
+ *
+ * Only the ids every Excel shows the same way: the number, percent,
+ * fraction, scientific, accounting, duration and text formats. The date and
+ * time ids (14 to 22) are drawn in the reader's own locale, so a date code is
+ * always written as the file's own format, to look as it was asked to.
+ *
+ * @param code {string} the format code
+ * @return {int} the id, or `-1` when the code is not one of them
+ * @example
+ *   builtinFormatId("@");      # 49
+ *   builtinFormatId("0.000");  # -1
+ */
+func builtinFormatId(code as string) {
+    for (def id in [1, 2, 3, 4, 9, 10, 11, 12, 13, 37, 38, 39, 40, 45, 46, 47, 48, 49]) {
+        if (builtinFormat($id) == $code) {
+            return $id;
+        }
+    }
+    return -1;
+}
+
+/**
  * The rest of the built-in format table.
  *
  * Split only because one `match` of fifty arms is past the statement limit.
