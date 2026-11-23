@@ -10,7 +10,8 @@ The deck reads, edits and writes OpenDocument (`.ods`), Office Open XML
 value-semantic `Workbook` model. Around that model it translates formulas
 between the A1 and OpenFormula dialects, evaluates about 110 functions,
 applies number formats the way an application displays them, reads large
-sheets row by row, and exports to HTML, JSON and PDF.
+sheets row by row, sets cells of an existing XLSX file in place, and exports
+to HTML, JSON and PDF.
 
 It is pure computation over bytes: it writes its own ZIP container and
 never shells out to an office suite. Only `open`, `save` and `openRows`
@@ -53,13 +54,19 @@ Out of scope:
   and the ODF number-style shapes were read off LibreOffice output.
   `General` is normalised to an empty format code, or ODF would write it as
   a literal word.
-- **A byte-level XML walker.** The readers scan the XML as bytes instead of
-  decoding whole documents into a tree. It keeps memory proportional to the
-  data, and ODS cells are mixed content (`a<span>B</span>b`), which the
-  `xml` library's text accessor flattens out of order. Element names are
-  matched on their local part, since ODS prefixes everything, XLSX uses a
-  default namespace, and `xml` does not resolve prefixes. The walker was
-  forked from `@deckyard/geo` and may diverge from it.
+- **A byte-level XML walker, and native decoding of leaves.** The readers
+  scan the XML as bytes instead of decoding whole documents into a tree,
+  which keeps memory proportional to the data. An XLSX row and a shared
+  string are then handed to `xml.decode` whole: one native parse per row
+  instead of an interpreted walk per cell, about thirty times faster. The
+  worksheet's namespace declarations go with them, because Excel declares
+  its extension prefixes (`x14ac`) on `<worksheet>` and uses them on the rows.
+  A row that does not decode is walked by the scanner, which reads what a
+  damaged file still has. ODS cells are mixed content (`a<span>B</span>b`),
+  which a tree's text accessor flattens out of order, so ODS stays on the
+  scanner. Element names are matched on their local part, since ODS prefixes
+  everything and XLSX may. The walker was forked from `@deckyard/geo` and may
+  diverge from it.
 - **A hand-written ZIP writer.** ODS requires `mimetype` to be the first
   member and stored uncompressed, which `archive.pack` cannot do. Reading
   uses `archive.unpack` behind a check of the central directory's declared
@@ -70,10 +77,28 @@ Out of scope:
 - **Performance comes from avoiding value copies.** Binding or passing a
   compound value deep-copies it, so the code keeps accumulators local
   instead of threading them through helpers, walks sheets by index, reads
-  cells through an inline chain, and lexes over a character list. `sheetOf`
+  cells through an inline chain, and lexes over a character list. A
+  function that returns a changed sheet, workbook or row cursor builds the
+  result from the fields of a parameter it never writes, which shares the
+  parts it did not change; `def out init $s` copied the whole value, the
+  cursor's file bytes and the sheet's cell map included. A reference is
+  spelled once per row from the column names, not rebuilt per use. `sheetOf`
   is the way to build a sheet; `setRow` per row is quadratic, as its
   docblock says. A consumer should read with `rows`, `row` or `valuesIn`
   rather than `cell` per cell. The measurements are in the Memory chapter.
+- **Layout is part of the sheet.** Column widths are in characters of the
+  default font, XLSX's unit; ODS stores a length, converted at 5.25 points
+  a character (a 7-pixel digit at 96 dpi). A frozen pane is a count of rows
+  and columns; ODS keeps it in `settings.xml`, written only when a sheet has
+  one. Gnumeric and CSV carry no layout.
+- **Patching keeps bytes, not the model.** `patchXlsx` rewrites only the
+  rows holding a changed cell and leaves every other part alone, so a
+  workbook from another application keeps what the model cannot hold. Text
+  goes in inline to leave the shared strings untouched; a change that would
+  break another cell (a shared formula's anchor, an array formula) or show
+  wrong (a date without a date format) is refused. It is XLSX only: an ODS
+  cell's place in its row depends on repeat runs, which patching would have
+  to split.
 - **ODS repeat runs are clamped, not refused.** Empty runs only advance the
   position; value runs expand up to a per-axis bound, and one element's
   product of both axes is clamped, because real files use huge empty runs.
@@ -116,7 +141,7 @@ The Reading untrusted files guide documents each case; in short:
 
 ## Testing and validation
 
-- One overlay per topic, about 560 tests, all run through
+- One overlay per topic, about 600 tests, all run through
   `src/sheets_test.j`. Fixtures are built in memory: ODS content through a
   document helper, XLSX containers member by member (deliberately not with
   the deck's own writer), so the readers are not tested only against the
