@@ -144,7 +144,8 @@ export func recalculate(wb as Workbook, sheetName as string) {
         cellStyles: $wb.sheets[$which].cellStyles,
         styles: $wb.sheets[$which].styles,
         rowCount: $wb.sheets[$which].rowCount,
-        colCount: $wb.sheets[$which].colCount
+        colCount: $wb.sheets[$which].colCount,
+        layout: $wb.sheets[$which].layout
     };
     return Recalculated{sheet: $out, evaluated: $evaluated, failed: $failed};
 }

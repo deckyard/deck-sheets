@@ -40,27 +40,38 @@ export func writeOds(wb as Workbook) {
     if (len($wb.sheets) == 0) {
         fail("cannot write a workbook with no sheets");
     }
+    # A frozen pane is view state, which ODF keeps in settings.xml; the part
+    # is only written when a sheet has one.
+    def settings as string init odsSettings($wb);
+    def entries as list of string init ["/", "content.xml", "styles.xml", "meta.xml"];
+    if ($settings != "") {
+        $entries[] = "settings.xml";
+    }
     def members as list of Member init [];
     $members[] = storedMember("mimetype", encoding.encode("utf-8", ODS_MIMETYPE));
-    $members[] = member("META-INF/manifest.xml", odsManifest());
+    $members[] = member("META-INF/manifest.xml", odsManifest($entries));
     $members[] = member("content.xml", writeOdsContent($wb));
     $members[] = member("styles.xml", odsStyles());
     $members[] = member("meta.xml", odsMeta());
+    if ($settings != "") {
+        $members[] = member("settings.xml", encoding.encode("utf-8", $settings));
+    }
     return zip($members);
 }
 
 /**
  * The `META-INF/manifest.xml` listing the container's parts.
  *
+ * @param entries {list of string} the parts, `"/"` for the package itself
  * @return {bytes} the manifest
  */
-func odsManifest() {
+func odsManifest(entries as list of string) {
     def parts as list of string init [];
     $parts[] = XML_DECLARATION;
     $parts[] = "<manifest:manifest xmlns:manifest=" +
         "\"urn:oasis:names:tc:opendocument:xmlns:manifest:1.0\"" +
         " manifest:version=\"" + ODF_VERSION + "\">";
-    for (def entry in ["/", "content.xml", "styles.xml", "meta.xml"]) {
+    for (def entry in $entries) {
         def mediaType as string init "text/xml";
         if ($entry == "/") {
             $mediaType = ODS_MIMETYPE;
@@ -110,6 +121,86 @@ func odsMeta() {
     $parts[] = tagClose("office:meta");
     $parts[] = tagClose("office:document-meta");
     return partsBytes($parts);
+}
+
+/**
+ * The `settings.xml` that freezes the sheets' panes, LibreOffice's way.
+ *
+ * Split mode 2 is a freeze. The horizontal split counts columns and the
+ * vertical one rows, and the right and bottom panes start where they end.
+ *
+ * @param wb {Workbook} the workbook
+ * @return {string} the part, or `""` when no sheet has a frozen pane
+ */
+func odsSettings(wb as Workbook) {
+    def tables as list of string init [];
+    for (def sheet in $wb.sheets) {
+        def rows as int init $sheet.layout.frozenRows;
+        def columns as int init $sheet.layout.frozenColumns;
+        if ($rows == 0 and $columns == 0) {
+            continue;
+        }
+        def items as list of string init [];
+        $items[] = tagOpenWith("config:config-item-map-entry", {"config:name": $sheet.name});
+        $items[] = configItem("HorizontalSplitMode", "short", odsSplitMode($columns));
+        $items[] = configItem("VerticalSplitMode", "short", odsSplitMode($rows));
+        $items[] = configItem("HorizontalSplitPosition", "int", convert.toString($columns));
+        $items[] = configItem("VerticalSplitPosition", "int", convert.toString($rows));
+        $items[] = configItem("ActiveSplitRange", "short", "2");
+        $items[] = configItem("PositionLeft", "int", "0");
+        $items[] = configItem("PositionRight", "int", convert.toString($columns));
+        $items[] = configItem("PositionTop", "int", "0");
+        $items[] = configItem("PositionBottom", "int", convert.toString($rows));
+        $items[] = tagClose("config:config-item-map-entry");
+        $tables[] = strings.join($items, "");
+    }
+    if (len($tables) == 0) {
+        return "";
+    }
+    return XML_DECLARATION +
+        "<office:document-settings" +
+        " xmlns:office=\"urn:oasis:names:tc:opendocument:xmlns:office:1.0\"" +
+        " xmlns:config=\"urn:oasis:names:tc:opendocument:xmlns:config:1.0\"" +
+        " office:version=\"" + ODF_VERSION + "\">" +
+        tagOpen("office:settings") +
+        tagOpenWith("config:config-item-set", {"config:name": "ooo:view-settings"}) +
+        tagOpenWith("config:config-item-map-indexed", {"config:name": "Views"}) +
+        tagOpen("config:config-item-map-entry") +
+        configItem("ViewId", "string", "view1") +
+        tagOpenWith("config:config-item-map-named", {"config:name": "Tables"}) +
+        strings.join($tables, "") +
+        tagClose("config:config-item-map-named") +
+        tagClose("config:config-item-map-entry") +
+        tagClose("config:config-item-map-indexed") +
+        tagClose("config:config-item-set") +
+        tagClose("office:settings") +
+        tagClose("office:document-settings");
+}
+
+/**
+ * One `<config:config-item>`.
+ *
+ * @param name {string} the item's name
+ * @param kind {string} its `config:type`
+ * @param value {string} its value
+ * @return {string} the element
+ */
+func configItem(name as string, kind as string, value as string) {
+    return tagOpenWith("config:config-item", {"config:name": $name, "config:type": $kind}) +
+        xmlEscape($value) + tagClose("config:config-item");
+}
+
+/**
+ * The split mode for an axis: 2 is frozen, 0 is not split.
+ *
+ * @param count {int} how many rows or columns are frozen
+ * @return {string} the mode
+ */
+func odsSplitMode(count as int) {
+    if ($count > 0) {
+        return "2";
+    }
+    return "0";
 }
 
 /**
@@ -187,6 +278,7 @@ func odsAutomaticStyles(wb as Workbook) {
     # qualified by the sheet's position so two sheets' tables cannot collide.
     for (def i in 0..len($wb.sheets)) {
         $parts[] = odsSheetStyles($wb.sheets[$i], $i);
+        $parts[] = odsColumnStyles($wb.sheets[$i].layout, $i);
     }
 
     $parts[] = tagClose("office:automatic-styles");
@@ -370,6 +462,74 @@ func odsDateParts() {
 }
 
 /**
+ * The column styles one sheet's widths need.
+ *
+ * @param layout {SheetLayout} the sheet's layout
+ * @param sheetIndex {int} the sheet's position, to name the styles
+ * @return {string} one `table-column` style per column with a width
+ */
+func odsColumnStyles(layout as SheetLayout, sheetIndex as int) {
+    def parts as list of string init [];
+    for (def c in widenedColumns($layout)) {
+        def points as float init $layout.columnWidths[columnName($c)] * POINTS_PER_CHARACTER;
+        $parts[] = tagOpenWith(
+            "style:style",
+            {"style:name": odsColumnStyleName($sheetIndex, $c), "style:family": "table-column"});
+        $parts[] = tagEmpty(
+            "style:table-column-properties",
+            {"style:column-width": numberAttr($points) + "pt"});
+        $parts[] = tagClose("style:style");
+    }
+    return strings.join($parts, "");
+}
+
+/**
+ * The name of a column's width style.
+ *
+ * @param sheetIndex {int} the sheet's position
+ * @param col {int} the zero-based column
+ * @return {string} the style name
+ */
+func odsColumnStyleName(sheetIndex as int, col as int) {
+    return "co" + convert.toString($sheetIndex) + "-" + convert.toString($col);
+}
+
+/**
+ * The `<table:table-column>` elements: runs of default columns, and one
+ * element per column with a width.
+ *
+ * @param layout {SheetLayout} the sheet's layout
+ * @param width {int} how many columns the table has
+ * @param sheetIndex {int} the sheet's position, to name the styles
+ * @return {string} the column elements
+ */
+func odsColumnsMarkup(layout as SheetLayout, width as int, sheetIndex as int) {
+    def parts as list of string init [];
+    def plain as int init 0;
+    for (def c in 0..$width) {
+        if (not maps.has($layout.columnWidths, columnName($c))) {
+            $plain = $plain + 1;
+            continue;
+        }
+        if ($plain > 0) {
+            $parts[] = tagEmpty(
+                "table:table-column",
+                {"table:number-columns-repeated": convert.toString($plain)});
+            $plain = 0;
+        }
+        $parts[] = tagEmpty(
+            "table:table-column",
+            {"table:style-name": odsColumnStyleName($sheetIndex, $c)});
+    }
+    if ($plain > 0) {
+        $parts[] = tagEmpty(
+            "table:table-column",
+            {"table:number-columns-repeated": convert.toString($plain)});
+    }
+    return strings.join($parts, "");
+}
+
+/**
  * One sheet as a `<table:table>`.
  *
  * @param s {Sheet} the sheet
@@ -379,13 +539,11 @@ func odsDateParts() {
 func odsTableMarkup(s as Sheet, sheetIndex as int) {
     def parts as list of string init [];
     $parts[] = tagOpenWith("table:table", {"table:name": $s.name});
-    def width as int init $s.colCount;
-    if ($width < 1) {
-        $width = 1;
+    def width as int init math.max($s.colCount, 1);
+    for (def c in widenedColumns($s.layout)) {
+        $width = math.max($width, $c + 1);
     }
-    $parts[] = tagEmpty(
-        "table:table-column",
-        {"table:number-columns-repeated": convert.toString($width)});
+    $parts[] = odsColumnsMarkup($s.layout, $width, $sheetIndex);
     # One row of the sheet is pulled out once and read from the list, rather
     # than asking the sheet for each cell: `cellAt` per cell would be a lookup
     # per cell where this is one pass.
@@ -445,8 +603,9 @@ func odsRowMarkup(line as list of Value, styleNames as list of string) {
  */
 func styleNamesForRow(s as Sheet, row as int, sheetIndex as int) {
     def out as list of string init [];
+    def rowText as string init convert.toString($row + 1);
     for (def c in 0..$s.colCount) {
-        def key as string init cellRef(Ref{row: $row, col: $c});
+        def key as string init columnName($c) + $rowText;
         if (not maps.has($s.cellStyles, $key)) {
             $out[] = "";
             continue;

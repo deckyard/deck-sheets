@@ -183,6 +183,20 @@ export func cellRef(at as Ref) {
 }
 
 /**
+ * The names of the first columns, by index.
+ *
+ * @param count {int} how many
+ * @return {list of string} `"A"`, `"B"`, ... up to `count` names
+ */
+func columnNames(count as int) {
+    def out as list of string init [];
+    for (def c in 0..$count) {
+        $out[] = columnName($c);
+    }
+    return $out;
+}
+
+/**
  * Read an A1 cell reference.
  *
  * Accepts the absolute spellings (`$B$7`, `B$7`, `$B7`) and discards the

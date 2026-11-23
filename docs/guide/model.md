@@ -64,6 +64,18 @@ is the area they span, also held as `$s.rowCount` / `$s.colCount`. Setting a
 cell to `Empty` removes it. The extent grows to cover a cell and never shrinks,
 as in both file formats.
 
+`$s.layout` holds how the sheet is shown: column widths in characters of the
+default font, and how many rows and columns are frozen in view.
+
+```jennifer
+$s = sheet.setColumnWidth($s, "A", 30.0);
+$s = sheet.freezePanes($s, 1, 0);   # keep the header row in view
+```
+
+XLSX and ODS keep the layout; Gnumeric and CSV do not. Reading a file keeps
+the widths of the columns inside the sheet's extent only: Excel often gives
+every column up to the grid's edge one width.
+
 ## Bulk access
 
 A `Sheet` is a value, so every call across the module boundary copies its

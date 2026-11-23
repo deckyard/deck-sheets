@@ -536,3 +536,24 @@ func testOdsColumnDefaultsAreBoundedByTheGrid() {
     def s as Sheet init sheetByName(readOdsContent(encoding.encode("utf-8", $content)), "S");
     testing.assertEqual(asString(cell($s, "A1")), "1");
 }
+
+func testOdsColumnWidthsReadInAnyUnit() {
+    def wb as Workbook init readOdsContent(encoding.encode(
+        "utf-8",
+        "<office:document-content" +
+            " xmlns:office=\"urn:oasis:names:tc:opendocument:xmlns:office:1.0\"" +
+            " xmlns:style=\"urn:oasis:names:tc:opendocument:xmlns:style:1.0\"" +
+            " xmlns:table=\"urn:oasis:names:tc:opendocument:xmlns:table:1.0\"" +
+            " xmlns:text=\"urn:oasis:names:tc:opendocument:xmlns:text:1.0\">" +
+            "<office:automatic-styles>" +
+            "<style:style style:name=\"co1\" style:family=\"table-column\">" +
+            "<style:table-column-properties style:column-width=\"0.875in\"/></style:style>" +
+            "</office:automatic-styles><office:body><office:spreadsheet>" +
+            "<table:table table:name=\"S\">" +
+            "<table:table-column table:style-name=\"co1\" table:number-columns-repeated=\"16384\"/>" +
+            "<table:table-row><table:table-cell office:value-type=\"float\" office:value=\"1\"/>" +
+            "<table:table-cell office:value-type=\"float\" office:value=\"2\"/></table:table-row>" +
+            "</table:table></office:spreadsheet></office:body></office:document-content>"));
+    # 0.875 in is 63 pt, twelve characters; only the sheet's two columns keep it.
+    testing.assertEqual(sheetByName($wb, "S").layout.columnWidths, {"A": 12.0, "B": 12.0});
+}

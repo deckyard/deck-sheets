@@ -62,7 +62,118 @@ export func readOds(raw as bytes) {
     if (maps.has($parts, "styles.xml")) {
         $extra = odsNumberStylesIn($parts["styles.xml"]);
     }
-    return readOdsDocument($parts["content.xml"], $extra);
+    def wb as Workbook init readOdsDocument($parts["content.xml"], $extra);
+    if (maps.has($parts, "settings.xml")) {
+        def frozen as map of string to SheetLayout init readOdsFreezes($parts["settings.xml"]);
+        for (def i in 0..len($wb.sheets)) {
+            def name as string init $wb.sheets[$i].name;
+            if (maps.has($frozen, $name)) {
+                $wb.sheets[$i].layout.frozenRows = $frozen[$name].frozenRows;
+                $wb.sheets[$i].layout.frozenColumns = $frozen[$name].frozenColumns;
+            }
+        }
+    }
+    return $wb;
+}
+
+/**
+ * The frozen panes `settings.xml` records, by sheet name.
+ *
+ * View state is a hint: a part that does not decode, or a split it does not
+ * spell as LibreOffice does, leaves the sheets unfrozen rather than failing
+ * the workbook. A reached decoder cap still throws.
+ *
+ * @param part {bytes} the settings part
+ * @return {map of string to SheetLayout} the panes, widths left empty
+ */
+func readOdsFreezes(part as bytes) {
+    def out as map of string to SheetLayout init {};
+    def root as xml.Value init xml.element("empty");
+    try {
+        $root = xml.decode(encoding.decode("utf-8", $part));
+    } catch (e) {
+        if (isGeneric($e.kind)) {
+            throw $e;
+        }
+        return $out;
+    }
+    def tables as list of xml.Value init [];
+    for (def set in xml.findAll($root, "*:settings/*:config-item-set")) {
+        if (configName($set) == "ooo:view-settings") {
+            $tables = viewTables($set);
+        }
+    }
+    if (len($tables) == 0) {
+        return $out;
+    }
+    for (def entry in xml.findAll($tables[0], "*:config-item-map-entry")) {
+        def items as map of string to string init {};
+        for (def item in xml.findAll($entry, "*:config-item")) {
+            $items[configName($item)] = strings.trim(xml.text($item));
+        }
+        def layout as SheetLayout init plainLayout();
+        $layout.frozenColumns = odsFrozenCount($items, "Horizontal", MAX_COLUMN);
+        $layout.frozenRows = odsFrozenCount($items, "Vertical", MAX_ROW);
+        $out[configName($entry)] = $layout;
+    }
+    return $out;
+}
+
+/**
+ * The per-sheet view settings under `ooo:view-settings`.
+ *
+ * @param set {xml.Value} the view settings set
+ * @return {list of xml.Value} the first view's `Tables` map, or nothing
+ */
+func viewTables(set as xml.Value) {
+    def out as list of xml.Value init [];
+    for (def views in xml.findAll($set, "*:config-item-map-indexed")) {
+        if (configName($views) != "Views") {
+            continue;
+        }
+        for (def named in xml.findAll($views, "*:config-item-map-entry/*:config-item-map-named")) {
+            if (configName($named) == "Tables" and len($out) == 0) {
+                $out[] = $named;
+            }
+        }
+    }
+    return $out;
+}
+
+/**
+ * The `config:name` of a settings element.
+ *
+ * @param node {xml.Value} the element
+ * @return {string} the name, or `""`
+ */
+func configName(node as xml.Value) {
+    if (not xml.hasAttr($node, "config:name")) {
+        return "";
+    }
+    return xml.attr($node, "config:name");
+}
+
+/**
+ * How many rows or columns one axis of a sheet's view freezes.
+ *
+ * @param items {map of string to string} the sheet's config items
+ * @param axis {string} `"Horizontal"` for columns, `"Vertical"` for rows
+ * @param most {int} the grid's last index on that axis
+ * @return {int} the count, 0 when the axis is not frozen
+ */
+func odsFrozenCount(items as map of string to string, axis as string, most as int) {
+    def mode as string init $axis + "SplitMode";
+    def position as string init $axis + "SplitPosition";
+    if (not maps.has($items, $mode) or $items[$mode] != "2" or not maps.has($items, $position)) {
+        return 0;
+    }
+    def count as int init 0;
+    try {
+        $count = convert.toInt($items[$position]);
+    } catch (e) {
+        return 0;
+    }
+    return clampedSplit($count, $most);
 }
 
 /**
@@ -152,11 +263,12 @@ func readOdsDocument(content as bytes, extra as map of string to string) {
     }
     def wb as Workbook init newWorkbook();
     def styles as map of string to Style init readOdsStyles($content, $root, $extra);
+    def widths as map of string to float init readOdsColumnWidthStyles($content, $root);
     def sheets as list of Sheet init [];
     def child as Node init nextChild($content, $spreadsheet.openEnd, $spreadsheet.innerEnd);
     while (isNode($child)) {
         if (localName($child.name) == "table") {
-            $sheets[] = readOdsTable($content, $child, len($sheets), $styles);
+            $sheets[] = readOdsTable($content, $child, len($sheets), $styles, $widths);
         }
         $child = nextChild($content, $child.end, $spreadsheet.innerEnd);
     }
@@ -630,9 +742,15 @@ func childNamed(src as bytes, parent as Node, name as string) {
  * @param table {Node} the table element
  * @param index {int} the table's position, for a fallback name
  * @param styles {map of string to Style} the document's cell styles by name
+ * @param widths {map of string to float} the column styles' widths by name
  * @return {Sheet} the sheet
  */
-func readOdsTable(src as bytes, table as Node, index as int, styles as map of string to Style) {
+func readOdsTable(
+    src as bytes,
+    table as Node,
+    index as int,
+    styles as map of string to Style,
+    widths as map of string to float) {
     def name as string init nodeAttr($src, $table, "name");
     if ($name == "") {
         $name = "Sheet" + convert.toString($index + 1);
@@ -685,7 +803,115 @@ func readOdsTable(src as bytes, table as Node, index as int, styles as map of st
         }
         $child = nextChild($src, $child.end, $table.innerEnd);
     }
-    return styledSheetFrom($name, $placed, $styled);
+    def out as Sheet init styledSheetFrom($name, $placed, $styled);
+    $out.layout.columnWidths = readOdsColumnWidths($src, $table, $widths, $out.colCount);
+    return $out;
+}
+
+/**
+ * The width each column style gives, in characters.
+ *
+ * @param src {bytes} the content part
+ * @param root {Node} the document root
+ * @return {map of string to float} style name to width, for the styles that set one
+ */
+func readOdsColumnWidthStyles(src as bytes, root as Node) {
+    def out as map of string to float init {};
+    def automatic as Node init childNamed($src, $root, "automatic-styles");
+    if (not isNode($automatic)) {
+        return $out;
+    }
+    def child as Node init nextChild($src, $automatic.openEnd, $automatic.innerEnd);
+    while (isNode($child)) {
+        if (localName($child.name) == "style" and
+            nodeAttr($src, $child, "family") == "table-column") {
+            def props as Node init childNamed($src, $child, "table-column-properties");
+            def width as float init -1.0;
+            if (isNode($props)) {
+                $width = odsLengthCharacters(nodeAttr($src, $props, "column-width"));
+            }
+            def name as string init nodeAttr($src, $child, "name");
+            if ($name != "" and $width > 0.0) {
+                $out[$name] = $width;
+            }
+        }
+        $child = nextChild($src, $child.end, $automatic.innerEnd);
+    }
+    return $out;
+}
+
+/**
+ * An ODF length as a column width in characters.
+ *
+ * Rounded to 1/256 of a character, the precision XLSX stores.
+ *
+ * @param raw {string} the length, such as `"2.5cm"` or `"126pt"`
+ * @return {float} the width, or `-1.0` when it is unreadable or past `MAX_COLUMN_WIDTH`
+ */
+func odsLengthCharacters(raw as string) {
+    def body as string init strings.trim($raw);
+    def points as float init 0.0;
+    for (def unit in [
+        ["cm", "28.346456692913385"],
+        ["mm", "2.8346456692913385"],
+        ["in", "72"],
+        ["pt", "1"],
+        ["pc", "12"],
+        ["px", "0.75"]
+    ]) {
+        if (strings.endsWith($body, $unit[0])) {
+            try {
+                $points = convert.toFloat($body[..len($body) - 2]) * convert.toFloat($unit[1]);
+            } catch (e) {
+                return -1.0;
+            }
+            def width as float init math.round($points / POINTS_PER_CHARACTER * 256.0) / 256.0;
+            if ($width <= 0.0 or $width > MAX_COLUMN_WIDTH) {
+                return -1.0;
+            }
+            return $width;
+        }
+    }
+    return -1.0;
+}
+
+/**
+ * Each column's width, from the column elements' style names.
+ *
+ * @param src {bytes} the content part
+ * @param table {Node} the table element
+ * @param widths {map of string to float} style name to width
+ * @param colCount {int} the sheet's width: columns past it are not kept
+ * @return {map of string to float} column name to width
+ */
+func readOdsColumnWidths(
+    src as bytes,
+    table as Node,
+    widths as map of string to float,
+    colCount as int) {
+    def out as map of string to float init {};
+    def at as int init 0;
+    def child as Node init nextChild($src, $table.openEnd, $table.innerEnd);
+    while (isNode($child) and $at < $colCount) {
+        def tag as string init localName($child.name);
+        if ($tag == "table-row" or isRowContainer($tag)) {
+            return $out;
+        }
+        if ($tag == "table-column") {
+            def span as int init columnSpanOf($src, $child, $at);
+            def name as string init nodeAttr($src, $child, "style-name");
+            def widened as int init $at;
+            if (maps.has($widths, $name)) {
+                $widened = math.min($at + $span, $colCount);
+            }
+            for (def c in $at..$widened) {
+                $out[columnName($c)] = $widths[$name];
+            }
+            $at = $at + $span;
+        }
+        $child = nextChild($src, $child.end, $table.innerEnd);
+    }
+    return $out;
 }
 
 /**

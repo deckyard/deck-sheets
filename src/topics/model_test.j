@@ -567,3 +567,54 @@ func testCheckSheetCellsRaisesKindLimitPastTheCap() {
     checkSheetCells("Big", MAX_SHEET_CELLS);
     testing.assertThrows("failOnTooManySheetCells", "limit");
 }
+
+func testAColumnWidthIsSetReadAndCleared() {
+    def s as Sheet init sheetOf("S", [[text("a"), text("b")]]);
+    testing.assertEqual(columnWidth($s, "B"), 0.0);
+    $s = setColumnWidth($s, "b", 24.5);
+    testing.assertEqual(columnWidth($s, "B"), 24.5);
+    $s = setColumnWidth($s, "B", 0.0);
+    testing.assertEqual(columnWidth($s, "B"), 0.0);
+    testing.assertEqual(len($s.layout.columnWidths), 0);
+}
+
+func testAColumnWidthOutsideTheRangeIsRefused() {
+    testing.assertThrows("widthTooLarge", ERROR_KIND);
+    testing.assertThrows("widthNegative", ERROR_KIND);
+    testing.assertThrows("widthOfABadColumn", ERROR_KIND);
+}
+
+func widthTooLarge() {
+    setColumnWidth(newSheet("S"), "A", 256.0);
+}
+
+func widthNegative() {
+    setColumnWidth(newSheet("S"), "A", -1.0);
+}
+
+func widthOfABadColumn() {
+    setColumnWidth(newSheet("S"), "A1", 10.0);
+}
+
+func testFreezePanesSetsAndClearsTheCounts() {
+    def s as Sheet init freezePanes(newSheet("S"), 1, 2);
+    testing.assertEqual($s.layout.frozenRows, 1);
+    testing.assertEqual($s.layout.frozenColumns, 2);
+    $s = freezePanes($s, 0, 0);
+    testing.assertEqual($s.layout, plainLayout());
+    testing.assertThrows("freezeNegative", ERROR_KIND);
+}
+
+func freezeNegative() {
+    freezePanes(newSheet("S"), -1, 0);
+}
+
+func testEditingASheetKeepsItsLayout() {
+    def s as Sheet init freezePanes(setColumnWidth(newSheet("S"), "C", 12.0), 1, 0);
+    $s = setCell($s, "A1", text("x"));
+    $s = setStyle($s, "A1", withBold(style(), true));
+    $s = setAreaStyle($s, "A1:B2", withBold(style(), true));
+    $s = setRow($s, 2, [number(1.0)]);
+    testing.assertEqual(columnWidth($s, "C"), 12.0);
+    testing.assertEqual($s.layout.frozenRows, 1);
+}
