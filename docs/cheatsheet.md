@@ -279,10 +279,20 @@ Treat it as opaque and use the functions above.
 | `values as list of Value` | the current row |
 | `more as bool` | whether another row is waiting |
 | `kind as Format` | which markup is being walked |
-| `shared as list of string` | XLSX shared string table |
+| `shared as SharedTable` | XLSX shared string table, packed |
 | `dateStyles as map of string to bool` | XLSX styles that mean a date |
 | `date1904 as bool` | the workbook's date system |
 | `namespaces as map of string to string` | XLSX namespace prefixes declared around the rows |
+
+### `SharedTable`
+
+The cursor's shared string table, packed into bytes so carrying it from row
+to row costs nothing. Opaque.
+
+| Field | What it holds |
+| --- | --- |
+| `text as bytes` | the strings' UTF-8, back to back |
+| `ends as bytes` | each string's end offset in `text`, 4 bytes little-endian |
 
 ## OpenDocument
 

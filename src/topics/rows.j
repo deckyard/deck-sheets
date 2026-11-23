@@ -28,7 +28,7 @@
  * @field values {list of Value} the row just read, left to right
  * @field more {bool} whether another row is waiting
  * @field kind {Format} which format's markup is being walked
- * @field shared {list of string} the shared string table, for XLSX
+ * @field shared {SharedTable} the shared string table, for XLSX
  * @field dateStyles {map of string to bool} which styles mean a date, for XLSX
  * @field date1904 {bool} whether the workbook counts dates from 1904
  * @field namespaces {map of string to string} the prefixes declared around
@@ -42,7 +42,7 @@ export def struct RowReader {
     values as list of Value,
     more as bool,
     kind as Format,
-    shared as list of string,
+    shared as SharedTable,
     dateStyles as map of string to bool,
     date1904 as bool,
     namespaces as map of string to string
@@ -140,7 +140,7 @@ func odsReaderOver(src as bytes, kind as Format) {
         values: [],
         more: true,
         kind: $kind,
-        shared: [],
+        shared: packShared([]),
         dateStyles: {},
         date1904: false,
         namespaces: {}
@@ -243,7 +243,7 @@ func openXlsxRows(raw as bytes, sheetName as string) {
         values: [],
         more: true,
         kind: Format.Xlsx,
-        shared: readSharedStrings($parts, $targets),
+        shared: packShared(readSharedStrings($parts, $targets)),
         dateStyles: readDateStyles($parts, $targets),
         date1904: readDate1904($workbookPart),
         namespaces: declaredPrefixes($src, [$root, $sheetData])
@@ -380,9 +380,10 @@ export func nextRow(r as RowReader) {
         }
         else { $values = odsRowValues($r, $rowNode); }
     }
-    # A fresh literal rather than a changed copy of $r: `def out init $r`
-    # deep-copied the sheet's bytes, the shared strings and the date styles
-    # once per row, while fields read from an unwritten parameter are shared.
+    # Every field of the cursor is copied for each row, whichever way the new
+    # cursor is built. That is why the big parts are bytes: a bytes copy is
+    # one block move, where a list of 17,500 strings cost 1.2 ms a row, a
+    # copy of every element.
     return RowReader{
         src: $r.src,
         at: $rowNode.end,
@@ -485,14 +486,14 @@ func xlsxTreeColumn(cellNode as xml.Value, fallback as int) {
  * a sheet written with a prefix (`<x:c><x:v>`) reads the same.
  *
  * @param cellNode {xml.Value} the decoded cell element
- * @param shared {list of string} the shared string table
+ * @param shared {SharedTable} the shared string table
  * @param dateStyles {map of string to bool} which style indices mean a date
  * @param date1904 {bool} whether the workbook uses the 1904 date system
  * @return {Value} the value
  */
 func xlsxTreeCellValue(
     cellNode as xml.Value,
-    shared as list of string,
+    shared as SharedTable,
     dateStyles as map of string to bool,
     date1904 as bool) {
     def kind as string init "n";

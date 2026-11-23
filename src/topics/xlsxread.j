@@ -32,7 +32,7 @@ export func readXlsx(raw as bytes) {
     }
     def workbookPart as bytes init $parts[XLSX_WORKBOOK];
     def targets as map of string to string init readRelationships($parts);
-    def shared as list of string init readSharedStrings($parts, $targets);
+    def shared as SharedTable init packShared(readSharedStrings($parts, $targets));
     def cellStyles as list of Style init readXlsxStyles($parts, $targets);
     def dateStyles as map of string to bool init dateStyleFlags($cellStyles);
 
@@ -197,12 +197,84 @@ func readSharedStrings(parts as map of string to bytes, targets as map of string
         return $out;
     }
     def namespaces as map of string to string init sheetPrefixes($src, $root, $root);
+    if ($root.name == "sst" and $root.closed) {
+        try {
+            return sharedStringsInBatches($src, $root, $namespaces);
+        } catch (e) {
+            if ($e.kind != ERROR_KIND) {
+                throw $e;
+            }
+            # A batch that does not decode: a `</si>` inside a comment or a
+            # CDATA section split it, or the part is damaged. The scanner
+            # reads the whole table instead.
+        }
+    }
     def child as Node init nextChild($src, $root.openEnd, $root.innerEnd);
     while (isNode($child)) {
         if (localName($child.name) == "si") {
             $out[] = sharedEntryText($src, $child, $namespaces);
         }
         $child = nextChild($src, $child.end, $root.innerEnd);
+    }
+    return $out;
+}
+
+/** How many shared strings one native decode takes. */
+def const SHARED_BATCH as int init 256;
+
+/** The end of a shared string entry, for the batch boundaries. */
+def const SI_CLOSE_PROBE as bytes init encoding.encode("utf-8", "</si>");
+
+/**
+ * The shared string table, decoded natively a batch of entries at a time.
+ *
+ * Finding each `<si>` with the scanner cost about 0.1 ms an entry, most of
+ * the time it takes to open a large workbook. Here a native search finds
+ * every 256th `</si>`, and each run of entries between two such ends is
+ * decoded in one call, inside a bare `<sst>` that carries the part's
+ * namespace bindings. Every byte between the root's tags is decoded once,
+ * so an entry that closes itself (`<si/>`) or an `extLst` after the last one
+ * lands in a batch like anything else.
+ *
+ * @param src {bytes} the shared strings part
+ * @param root {Node} the unprefixed `<sst>` element
+ * @param namespaces {map of string to string} the prefixes the part declares
+ * @return {list of string} the strings, in index order
+ * @throws {Error} kind "sheets" when a batch is not well-formed XML; kind
+ *   "limit" past the decoder's caps
+ */
+func sharedStringsInBatches(src as bytes, root as Node, namespaces as map of string to string) {
+    def out as list of string init [];
+    def at as int init $root.openEnd;
+    while ($at < $root.innerEnd) {
+        def end as int init $at;
+        def count as int init 0;
+        while ($count < SHARED_BATCH) {
+            def close as int init indexOfByte($src, SI_CLOSE_PROBE, $end, $root.innerEnd);
+            if ($close < 0) {
+                break;
+            }
+            $end = $close + len(SI_CLOSE_PROBE);
+            $count = $count + 1;
+        }
+        if ($count == 0) {
+            $end = $root.innerEnd;
+        }
+        def batch as xml.Value init xml.element("sst");
+        try {
+            $batch = xml.decode("<sst>" + byteText($src, $at, $end) + "</sst>", $namespaces);
+        } catch (e) {
+            if (isGeneric($e.kind)) {
+                throw $e;
+            }
+            fail("the shared string table is not well-formed: " + $e.message);
+        }
+        for (def entry in xml.children($batch)) {
+            if (localName(xml.tag($entry)) == "si") {
+                $out[] = treeRunText($entry);
+            }
+        }
+        $at = $end;
     }
     return $out;
 }
@@ -834,7 +906,7 @@ func findPartBySuffix(
  * @param parts {map of string to bytes} the container's members
  * @param targets {map of string to string} the relationship map
  * @param entry {SheetEntry} the workbook's entry for this sheet
- * @param shared {list of string} the shared string table
+ * @param shared {SharedTable} the shared string table
  * @param cellStyles {list of Style} one style per `cellXfs` entry
  * @param dateStyles {map of string to bool} which style indices mean a date
  * @param date1904 {bool} whether the workbook uses the 1904 date system
@@ -845,7 +917,7 @@ func readXlsxSheet(
     parts as map of string to bytes,
     targets as map of string to string,
     entry as SheetEntry,
-    shared as list of string,
+    shared as SharedTable,
     cellStyles as list of Style,
     dateStyles as map of string to bool,
     date1904 as bool) {
@@ -1093,13 +1165,13 @@ func sheetPrefixes(src as bytes, root as Node, sheetData as Node) {
 /**
  * What a cell needs from outside its sheet to be read.
  *
- * @field shared {list of string} the shared string table
+ * @field shared {SharedTable} the shared string table
  * @field cellStyles {list of Style} one style per `cellXfs` entry
  * @field dateStyles {map of string to bool} which style indices mean a date
  * @field date1904 {bool} whether the workbook uses the 1904 date system
  */
 def struct XlsxLookups {
-    shared as list of string,
+    shared as SharedTable,
     cellStyles as list of Style,
     dateStyles as map of string to bool,
     date1904 as bool
@@ -1275,7 +1347,7 @@ func xlsxRowIndex(src as bytes, rowNode as Node, fallback as int) {
  * @param src {bytes} the worksheet part
  * @param rowNode {Node} the row element
  * @param rowIndex {int} the row's zero-based index
- * @param shared {list of string} the shared string table
+ * @param shared {SharedTable} the shared string table
  * @param dateStyles {map of string to bool} which style indices mean a date
  * @param date1904 {bool} whether the workbook uses the 1904 date system
  * @return {list of Placed} the cells the row puts on the sheet
@@ -1284,7 +1356,7 @@ func readXlsxRowCells(
     src as bytes,
     rowNode as Node,
     rowIndex as int,
-    shared as list of string,
+    shared as SharedTable,
     dateStyles as map of string to bool,
     date1904 as bool) {
     def out as list of Placed init [];
@@ -1344,7 +1416,7 @@ func xlsxCellRef(src as bytes, cellNode as Node, rowIndex as int, fallbackCol as
  *
  * @param src {bytes} the worksheet part
  * @param cellNode {Node} the cell element
- * @param shared {list of string} the shared string table
+ * @param shared {SharedTable} the shared string table
  * @param dateStyles {map of string to bool} which style indices mean a date
  * @param date1904 {bool} whether the workbook uses the 1904 date system
  * @return {Value} the value, `Empty` when the cell carries nothing
@@ -1352,7 +1424,7 @@ func xlsxCellRef(src as bytes, cellNode as Node, rowIndex as int, fallbackCol as
 func xlsxCellValue(
     src as bytes,
     cellNode as Node,
-    shared as list of string,
+    shared as SharedTable,
     dateStyles as map of string to bool,
     date1904 as bool) {
     def kind as string init nodeAttr($src, $cellNode, "t");
@@ -1406,31 +1478,72 @@ func childNodeText(src as bytes, parent as Node, name as string) {
 /**
  * A shared string by index.
  *
- * @param shared {list of string} the shared string table
+ * @param shared {SharedTable} the shared string table
  * @param rawIndex {string} the index as written
  * @return {string} the string, or `""` when the index is out of range
  */
-func sharedString(shared as list of string, rawIndex as string) {
+func sharedString(shared as SharedTable, rawIndex as string) {
     def index as int init -1;
     try {
         $index = convert.toInt(strings.trim($rawIndex));
     } catch (e) {
         return "";
     }
-    if ($index < 0 or $index >= len($shared)) {
+    def count as int init len($shared.ends) // 4;
+    if ($index < 0 or $index >= $count) {
         return "";
     }
-    return $shared[$index];
+    def start as int init 0;
+    if ($index > 0) {
+        $start = binary.readUint("le", $shared.ends, ($index - 1) * 4, 4);
+    }
+    return byteText($shared.text, $start, binary.readUint("le", $shared.ends, $index * 4, 4));
+}
+
+/**
+ * The shared string table, packed into bytes.
+ *
+ * `text` is every string's UTF-8 run together, and `ends` each string's end
+ * offset in it as four little-endian bytes. A row cursor is rebuilt for every
+ * row, and a `bytes` field costs nothing to carry over where a
+ * `list of string` costs time in proportion to its length: 1.2 ms a row for
+ * 17,500 strings.
+ *
+ * @field text {bytes} the strings, back to back
+ * @field ends {bytes} the end offset of each, 4 bytes little-endian
+ */
+export def struct SharedTable {
+    text as bytes,
+    ends as bytes
+};
+
+/**
+ * Pack a list of strings into a table.
+ *
+ * @param entries {list of string} the strings, in index order
+ * @return {SharedTable} the table
+ */
+func packShared(entries as list of string) {
+    def texts as list of bytes init [];
+    def ends as list of bytes init [];
+    def at as int init 0;
+    for (def one in $entries) {
+        def body as bytes init encoding.encode("utf-8", $one);
+        $at = $at + len($body);
+        $texts[] = $body;
+        $ends[] = le32($at);
+    }
+    return SharedTable{text: binary.join($texts), ends: binary.join($ends)};
 }
 
 /**
  * A cell holding a shared string.
  *
- * @param shared {list of string} the shared string table
+ * @param shared {SharedTable} the shared string table
  * @param rawIndex {string} the index as written
  * @return {Value} the value
  */
-func xlsxSharedValue(shared as list of string, rawIndex as string) {
+func xlsxSharedValue(shared as SharedTable, rawIndex as string) {
     def body as string init sharedString($shared, $rawIndex);
     if ($body == "") {
         return Value.Empty;
