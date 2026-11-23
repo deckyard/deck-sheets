@@ -337,3 +337,116 @@ func testAnOffGridColumnIsDroppedToo() {
     def s as Sheet init sheetByName($wb, "Sheet1");
     testing.assertTrue($s.colCount <= MAX_COLUMN + 1);
 }
+
+/**
+ * A one-sheet container around a whole worksheet part.
+ *
+ * @param worksheet {string} the worksheet part
+ * @return {bytes} the container
+ */
+func oneWorksheetContainer(worksheet as string) {
+    return xlsxContainer({
+        "xl/workbook.xml": "<workbook xmlns:r=\"r\"><sheets>" +
+            "<sheet name=\"S\" r:id=\"rId1\"/></sheets></workbook>",
+        "xl/_rels/workbook.xml.rels": "<Relationships>" +
+            "<Relationship Id=\"rId1\" Target=\"worksheets/sheet1.xml\"/></Relationships>",
+        "xl/worksheets/sheet1.xml": $worksheet
+    });
+}
+
+/**
+ * The first row of a sheet, as both readers see it.
+ *
+ * @param raw {bytes} the container
+ * @return {list of list of Value} the whole read's row, then the cursor's
+ */
+func firstRowBothWays(raw as bytes) {
+    def whole as list of Value init rows(sheetByName(readXlsx($raw), "S"))[0];
+    def r as RowReader init openRowsFromBytes($raw, Format.Xlsx, "S");
+    $r = nextRow($r);
+    return [$whole, rowValues($r)];
+}
+
+func testExtensionAttributesOnARowAreRead() {
+    def both as list of list of Value init firstRowBothWays(oneWorksheetContainer(
+        "<worksheet xmlns:x14ac=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac\">" +
+            "<sheetData><row r=\"1\" x14ac:dyDescent=\"0.35\">" +
+            "<c r=\"A1\"><v>1</v></c><c r=\"B1\" t=\"inlineStr\"><is><t>b</t></is></c>" +
+            "</row></sheetData></worksheet>"));
+    for (def line in $both) {
+        testing.assertEqual($line, [number(1.0), text("b")]);
+    }
+}
+
+func testAPrefixedWorksheetReadsLikeAPlainOne() {
+    # Some writers spell SpreadsheetML with a prefix: every child is matched
+    # on its local name.
+    def both as list of list of Value init firstRowBothWays(oneWorksheetContainer(
+        "<x:worksheet xmlns:x=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">" +
+            "<x:sheetData><x:row r=\"1\">" +
+            "<x:c r=\"A1\"><x:v>1</x:v></x:c>" +
+            "<x:c r=\"B1\" t=\"inlineStr\"><x:is><x:t>b</x:t></x:is></x:c>" +
+            "<x:c r=\"C1\"><x:f>A1+1</x:f><x:v>2</x:v></x:c>" +
+            "</x:row></x:sheetData></x:worksheet>"));
+    for (def line in $both) {
+        testing.assertEqual(
+            $line,
+            [number(1.0), text("b"), Value.Formula{source: "A1+1", cached: "2"}]);
+    }
+}
+
+func testAnInlineStringSplitIntoRunsIsJoined() {
+    def both as list of list of Value init firstRowBothWays(oneWorksheetContainer(
+        "<worksheet><sheetData><row r=\"1\"><c r=\"A1\" t=\"inlineStr\"><is>" +
+            "<r><t>Hello</t></r><r><rPr><b/></rPr><t> bold</t></r></is></c>" +
+            "</row></sheetData></worksheet>"));
+    for (def line in $both) {
+        testing.assertEqual($line, [text("Hello bold")]);
+    }
+}
+
+func testARowCutShortStillReadsWhatItHas() {
+    # A row that does not decode is walked by the scanner instead, which reads
+    # the cells written before the damage.
+    def wb as Workbook init readXlsx(oneWorksheetContainer(
+        "<worksheet><sheetData><row r=\"1\"><c r=\"A1\"><v>1</v></c>" +
+            "<c r=\"B1\"><v>2</v></c></sheetData></worksheet>"));
+    def s as Sheet init sheetByName($wb, "S");
+    testing.assertEqual(cell($s, "A1"), number(1.0));
+    testing.assertEqual(cell($s, "B1"), number(2.0));
+}
+
+func testAStyledCellKeepsItsStyleThroughTheIndex() {
+    def s as Sheet init sheetOf("S", [[text("a"), text("b"), text("c")]]);
+    $s = setStyle($s, "A1", withBold(style(), true));
+    $s = setStyle($s, "C1", withBold(style(), true));
+    def back as Sheet init sheetByName(readXlsx(writeXlsx(addSheet(newWorkbook(), $s))), "S");
+    testing.assertTrue(styleAt($back, "A1").bold);
+    testing.assertFalse(styleAt($back, "B1").bold);
+    testing.assertTrue(styleAt($back, "C1").bold);
+    testing.assertEqual(len($back.styles), len($s.styles));
+}
+
+func testExcelColumnRangesAreKeptInsideTheSheet() {
+    # Excel gives a run of columns, often to the grid's edge, one <col>.
+    def back as Sheet init sheetByName(
+        readXlsx(oneWorksheetContainer(
+            "<worksheet><cols><col min=\"1\" max=\"1\" width=\"20.5\" customWidth=\"1\"/>" +
+                "<col min=\"2\" max=\"16384\" width=\"9.140625\"/></cols><sheetData>" +
+                "<row r=\"1\"><c r=\"A1\"><v>1</v></c><c r=\"C1\"><v>3</v></c></row>" +
+                "</sheetData></worksheet>")),
+        "S");
+    testing.assertEqual($back.layout.columnWidths, {"A": 20.5, "B": 9.140625, "C": 9.140625});
+}
+
+func testAPlainSplitIsNotAFreeze() {
+    def back as Sheet init sheetByName(
+        readXlsx(oneWorksheetContainer(
+            "<worksheet><sheetViews><sheetView workbookViewId=\"0\">" +
+                "<pane xSplit=\"2000\" ySplit=\"1500\" topLeftCell=\"B2\"/>" +
+                "</sheetView></sheetViews><sheetData>" +
+                "<row r=\"1\"><c r=\"A1\"><v>1</v></c></row></sheetData></worksheet>")),
+        "S");
+    testing.assertEqual($back.layout.frozenRows, 0);
+    testing.assertEqual($back.layout.frozenColumns, 0);
+}

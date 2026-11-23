@@ -196,14 +196,39 @@ func readSharedStrings(parts as map of string to bytes, targets as map of string
     if (not isNode($root)) {
         return $out;
     }
+    def namespaces as map of string to string init sheetPrefixes($src, $root, $root);
     def child as Node init nextChild($src, $root.openEnd, $root.innerEnd);
     while (isNode($child)) {
         if (localName($child.name) == "si") {
-            $out[] = sharedStringText($src, $child);
+            $out[] = sharedEntryText($src, $child, $namespaces);
         }
         $child = nextChild($src, $child.end, $root.innerEnd);
     }
     return $out;
+}
+
+/**
+ * The text of one shared string entry, decoded natively.
+ *
+ * One native parse per entry instead of a scanner walk of its runs; an entry
+ * that does not decode is read by the scanner, which takes what it can.
+ *
+ * @param src {bytes} the shared strings part
+ * @param entry {Node} the `<si>` element
+ * @param namespaces {map of string to string} the prefixes the part declares
+ * @return {string} the text
+ */
+func sharedEntryText(src as bytes, entry as Node, namespaces as map of string to string) {
+    def tree as xml.Value init xml.element("si");
+    try {
+        $tree = decodeLeaf($src, $entry, $namespaces);
+    } catch (e) {
+        if ($e.kind != ERROR_KIND) {
+            throw $e;
+        }
+        return sharedStringText($src, $entry);
+    }
+    return treeRunText($tree);
 }
 
 /**
@@ -829,7 +854,7 @@ func readXlsxSheet(
         $name = "Sheet";
     }
     def placed as list of Placed init [];
-    def styled as list of Styled init [];
+    def styled as list of StyledXf init [];
     def path as string init sheetPartPath($parts, $targets, $entry);
     if ($path == "") {
         # Damage, not bad data: a workbook naming a part that is not in the
@@ -846,42 +871,313 @@ func readXlsxSheet(
     if (not isNode($sheetData)) {
         return sheetFrom($name, $placed);
     }
+    def namespaces as map of string to string init sheetPrefixes($src, $root, $sheetData);
+    def look as XlsxLookups init XlsxLookups{
+        shared: $shared,
+        cellStyles: $cellStyles,
+        dateStyles: $dateStyles,
+        date1904: $date1904
+    };
     def rowIndex as int init 0;
     def rowNode as Node init nextChild($src, $sheetData.openEnd, $sheetData.innerEnd);
     while (isNode($rowNode)) {
         if (localName($rowNode.name) == "row") {
             $rowIndex = xlsxRowIndex($src, $rowNode, $rowIndex);
-            for (def p in readXlsxRowCells(
-                $src,
-                $rowNode,
-                $rowIndex,
-                $shared,
-                $dateStyles,
-                $date1904)) {
+            def cells as RowCells init readXlsxRow($src, $rowNode, $rowIndex, $namespaces, $look);
+            for (def p in $cells.placed) {
                 $placed[] = $p;
             }
-            for (def one in readXlsxRowStyles($src, $rowNode, $rowIndex, $cellStyles)) {
+            for (def one in $cells.styled) {
                 $styled[] = $one;
             }
             $rowIndex = $rowIndex + 1;
         }
         $rowNode = nextChild($src, $rowNode.end, $sheetData.innerEnd);
     }
-    return styledSheetFrom($name, $placed, $styled);
+    def out as Sheet init xfSheetFrom($name, $placed, $styled, $cellStyles);
+    $out.layout = readXlsxLayout($src, $root, $out.colCount);
+    return $out;
 }
 
 /**
- * The style a `cellXfs` index names.
+ * A worksheet's column widths and frozen panes.
  *
- * @param cellStyles {list of Style} one style per entry
- * @param index {int} the index, or `-1` when the cell had none
- * @return {Style} the style, the default when the index names nothing
+ * Widths are kept for the columns inside the sheet's extent: Excel often
+ * gives one `<col>` to every column up to the grid's edge, and a width on a
+ * column that holds nothing is not worth sixteen thousand entries. A width
+ * or a split that does not read as a number is left out, like any other
+ * layout hint a file gets wrong.
+ *
+ * @param src {bytes} the worksheet part
+ * @param root {Node} the `<worksheet>` element
+ * @param colCount {int} the sheet's width, in columns
+ * @return {SheetLayout} the layout
  */
-func styleByIndex(cellStyles as list of Style, index as int) {
-    if ($index <= 0 or $index >= len($cellStyles)) {
-        return style();
+func readXlsxLayout(src as bytes, root as Node, colCount as int) {
+    def out as SheetLayout init plainLayout();
+    def cols as Node init childNamed($src, $root, "cols");
+    if (isNode($cols)) {
+        for (def col in childNodes($src, $cols.openEnd, $cols.innerEnd)) {
+            if (localName($col.name) != "col") {
+                continue;
+            }
+            def width as float init floatAttr($src, $col, "width");
+            def first as int init indexAttr($src, $col, "min");
+            def last as int init math.min(indexAttr($src, $col, "max"), $colCount);
+            if ($width <= 0.0 or $width > MAX_COLUMN_WIDTH or $first < 1) {
+                continue;
+            }
+            for (def c in ($first - 1)..math.max($last, $first - 1)) {
+                $out.columnWidths[columnName($c)] = $width;
+            }
+        }
     }
-    return $cellStyles[$index];
+    def views as Node init childNamed($src, $root, "sheetViews");
+    if (not isNode($views)) {
+        return $out;
+    }
+    def view as Node init childNamed($src, $views, "sheetView");
+    if (not isNode($view)) {
+        return $out;
+    }
+    def pane as Node init childNamed($src, $view, "pane");
+    if (not isNode($pane)) {
+        return $out;
+    }
+    def state as string init nodeAttr($src, $pane, "state");
+    if ($state != "frozen" and $state != "frozenSplit") {
+        # A plain split scrolls both halves; it is not a freeze.
+        return $out;
+    }
+    $out.frozenColumns = clampedSplit(indexAttr($src, $pane, "xSplit"), MAX_COLUMN);
+    $out.frozenRows = clampedSplit(indexAttr($src, $pane, "ySplit"), MAX_ROW);
+    return $out;
+}
+
+/**
+ * A frozen split as a count, or 0 when it is absent or off the grid.
+ *
+ * @param split {int} the split as read, `-1` when absent
+ * @param most {int} the grid's last index on that axis
+ * @return {int} the count
+ */
+func clampedSplit(split as int, most as int) {
+    if ($split < 0 or $split > $most) {
+        return 0;
+    }
+    return $split;
+}
+
+/**
+ * A float attribute, or `-1.0` when it is absent or unreadable.
+ *
+ * @param src {bytes} the part
+ * @param node {Node} the element
+ * @param name {string} the attribute
+ * @return {float} the value, or `-1.0`
+ */
+func floatAttr(src as bytes, node as Node, name as string) {
+    def raw as string init strings.trim(nodeAttr($src, $node, $name));
+    if ($raw == "") {
+        return -1.0;
+    }
+    def out as float init -1.0;
+    try {
+        $out = convert.toFloat($raw);
+    } catch (e) {
+        return -1.0;
+    }
+    return $out;
+}
+
+/**
+ * A styled cell, by the `cellXfs` entry it points at.
+ *
+ * The index rather than the style: a `Style` is a dozen fields, and carrying
+ * one per styled cell until the sheet is built cost more memory than the
+ * cells themselves.
+ *
+ * @field at {Ref} the cell
+ * @field xf {int} its `cellXfs` index
+ */
+def struct StyledXf {
+    at as Ref,
+    xf as int
+};
+
+/**
+ * Whether a `cellXfs` index styles a cell.
+ *
+ * @param cellStyles {list of Style} one style per `cellXfs` entry
+ * @param xf {int} the index, `-1` when the cell had none
+ * @return {bool} whether it names an entry other than the general format
+ */
+func isStyledXf(cellStyles as list of Style, xf as int) {
+    return $xf > 0 and $xf < len($cellStyles) and not isPlain($cellStyles[$xf]);
+}
+
+/**
+ * Build a sheet from placed cells and the `cellXfs` entries they point at.
+ *
+ * As {@link styledSheetFrom}, but each distinct entry is interned once and
+ * the cells take its index.
+ *
+ * @param name {string} the sheet name
+ * @param placed {list of Placed} the cells
+ * @param styled {list of StyledXf} the styled cells
+ * @param cellStyles {list of Style} one style per `cellXfs` entry
+ * @return {Sheet} the sheet
+ * @throws {Error} kind "sheets" when the name is unusable; kind "limit" when there are too many cells
+ */
+func xfSheetFrom(
+    name as string,
+    placed as list of Placed,
+    styled as list of StyledXf,
+    cellStyles as list of Style) {
+    def out as Sheet init sheetFrom($name, $placed);
+    if (len($styled) == 0) {
+        return $out;
+    }
+    def table as list of Style init $out.styles;
+    def indices as map of string to int init $out.cellStyles;
+    def local as map of string to int init {};
+    def rowCount as int init $out.rowCount;
+    def colCount as int init $out.colCount;
+    for (def one in $styled) {
+        if (not onGrid($one.at)) {
+            continue;
+        }
+        def key as string init convert.toString($one.xf);
+        if (not maps.has($local, $key)) {
+            def index as int init styleIndexIn($table, $cellStyles[$one.xf]);
+            if ($index < 0) {
+                $table[] = $cellStyles[$one.xf];
+                $index = len($table) - 1;
+            }
+            $local[$key] = $index;
+        }
+        $indices[cellRef($one.at)] = $local[$key];
+        $rowCount = math.max($rowCount, $one.at.row + 1);
+        $colCount = math.max($colCount, $one.at.col + 1);
+    }
+    $out.styles = $table;
+    $out.cellStyles = $indices;
+    $out.rowCount = $rowCount;
+    $out.colCount = $colCount;
+    return $out;
+}
+
+/**
+ * The namespace prefixes a worksheet declares around its rows.
+ *
+ * A damaged open tag gives no bindings rather than failing the sheet: a row
+ * that then uses a prefix does not decode, and is read by the scanner.
+ *
+ * @param src {bytes} the worksheet part
+ * @param root {Node} the `<worksheet>` element
+ * @param sheetData {Node} the `<sheetData>` element
+ * @return {map of string to string} prefix to namespace URI
+ */
+func sheetPrefixes(src as bytes, root as Node, sheetData as Node) {
+    def out as map of string to string init {};
+    try {
+        $out = declaredPrefixes($src, [$root, $sheetData]);
+    } catch (e) {
+        if ($e.kind != ERROR_KIND) {
+            throw $e;
+        }
+    }
+    return $out;
+}
+
+/**
+ * What a cell needs from outside its sheet to be read.
+ *
+ * @field shared {list of string} the shared string table
+ * @field cellStyles {list of Style} one style per `cellXfs` entry
+ * @field dateStyles {map of string to bool} which style indices mean a date
+ * @field date1904 {bool} whether the workbook uses the 1904 date system
+ */
+def struct XlsxLookups {
+    shared as list of string,
+    cellStyles as list of Style,
+    dateStyles as map of string to bool,
+    date1904 as bool
+};
+
+/**
+ * The cells and the styles one row puts on the sheet.
+ *
+ * @field placed {list of Placed} the cells that hold something
+ * @field styled {list of StyledXf} the cells whose style is not the default
+ */
+def struct RowCells {
+    placed as list of Placed,
+    styled as list of StyledXf
+};
+
+/**
+ * One `<row>`'s cells and styles.
+ *
+ * The row is decoded natively, once, and read off the tree, as the streaming
+ * reader does: walking it with the scanner cost about 0.3 ms per cell, twice
+ * over. A row that does not decode - a file cut short mid-row, a broken tag -
+ * is walked with the scanner instead, which reads what it can.
+ *
+ * @param src {bytes} the worksheet part
+ * @param rowNode {Node} the row element
+ * @param rowIndex {int} the row's zero-based index
+ * @param namespaces {map of string to string} the prefixes declared around the rows
+ * @param look {XlsxLookups} the tables the cells refer to
+ * @return {RowCells} the row's cells and styles
+ */
+func readXlsxRow(
+    src as bytes,
+    rowNode as Node,
+    rowIndex as int,
+    namespaces as map of string to string,
+    look as XlsxLookups) {
+    def tree as xml.Value init xml.element("row");
+    try {
+        $tree = decodeLeaf($src, $rowNode, $namespaces);
+    } catch (e) {
+        if ($e.kind != ERROR_KIND) {
+            throw $e;
+        }
+        return RowCells{
+            placed: readXlsxRowCells(
+                $src,
+                $rowNode,
+                $rowIndex,
+                $look.shared,
+                $look.dateStyles,
+                $look.date1904),
+            styled: readXlsxRowStyles($src, $rowNode, $rowIndex, $look.cellStyles)
+        };
+    }
+    def placed as list of Placed init [];
+    def styled as list of StyledXf init [];
+    def colIndex as int init 0;
+    for (def cellNode in xml.children($tree)) {
+        if (localName(xml.tag($cellNode)) != "c") {
+            continue;
+        }
+        def at as Ref init Ref{row: $rowIndex, col: xlsxTreeColumn($cellNode, $colIndex)};
+        $colIndex = $at.col + 1;
+        def v as Value init xlsxTreeCellValue(
+            $cellNode,
+            $look.shared,
+            $look.dateStyles,
+            $look.date1904);
+        if (not isEmpty($v)) {
+            $placed[] = Placed{at: $at, value: $v};
+        }
+        def xf as int init treeIndexAttr($cellNode, "s");
+        if (isStyledXf($look.cellStyles, $xf)) {
+            $styled[] = StyledXf{at: $at, xf: $xf};
+        }
+    }
+    return RowCells{placed: $placed, styled: $styled};
 }
 
 /**
@@ -894,23 +1190,23 @@ func styleByIndex(cellStyles as list of Style, index as int) {
  * @param rowNode {Node} the row element
  * @param rowIndex {int} the row's zero-based index
  * @param cellStyles {list of Style} one style per `cellXfs` entry
- * @return {list of Styled} the styles the row places
+ * @return {list of StyledXf} the styled cells of the row
  */
 func readXlsxRowStyles(
     src as bytes,
     rowNode as Node,
     rowIndex as int,
     cellStyles as list of Style) {
-    def out as list of Styled init [];
+    def out as list of StyledXf init [];
     def colIndex as int init 0;
     def cellNode as Node init nextChild($src, $rowNode.openEnd, $rowNode.innerEnd);
     while (isNode($cellNode)) {
         if (localName($cellNode.name) == "c") {
             def at as Ref init xlsxCellRef($src, $cellNode, $rowIndex, $colIndex);
             $colIndex = $at.col + 1;
-            def st as Style init styleByIndex($cellStyles, indexAttr($src, $cellNode, "s"));
-            if (not isPlain($st)) {
-                $out[] = Styled{at: $at, style: $st};
+            def xf as int init indexAttr($src, $cellNode, "s");
+            if (isStyledXf($cellStyles, $xf)) {
+                $out[] = StyledXf{at: $at, xf: $xf};
             }
         }
         $cellNode = nextChild($src, $cellNode.end, $rowNode.innerEnd);
