@@ -614,10 +614,10 @@ def const NO_REACH as Ref init Ref{row: -1, col: -1};
 /**
  * A sheet with new cell and style tables, its extent grown to cover a cell.
  *
- * Every changing function builds its result here, from the fields of a
- * parameter it never writes, so the tables it did not change are shared
- * rather than copied: `def out as Sheet init $s` deep-copied the whole sheet,
- * cell map included, on every call.
+ * Every changing function builds its result here, so a call copies the
+ * sheet once: `def out as Sheet init $s` and then a changed table copied the
+ * changed part twice. A field read into a literal is still deep-copied (the
+ * interpreter's M30.2), so the cell map is copied once per call either way.
  *
  * A style can sit on an empty cell, so the extent follows styles as well as
  * values or a styled blank row would not be written.
@@ -1094,8 +1094,8 @@ export func sheetNames(wb as Workbook) {
  *   $wb = putSheet($wb, $s);
  */
 export func putSheet(wb as Workbook, s as Sheet) {
-    # Built from the unwritten parameter's fields: copying the workbook first
-    # and then its sheet list copied every sheet twice.
+    # One copy of the sheet list: copying the workbook first and then its
+    # sheet list copied every sheet twice.
     def sheets as list of Sheet init $wb.sheets;
     def replaced as bool init false;
     for (def i in 0..len($sheets)) {

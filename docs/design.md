@@ -78,10 +78,10 @@ Out of scope:
   compound value deep-copies it, so the code keeps accumulators local
   instead of threading them through helpers, walks sheets by index, reads
   cells through an inline chain, and lexes over a character list. A
-  function that returns a changed sheet, workbook or row cursor builds the
-  result from the fields of a parameter it never writes, which shares the
-  parts it did not change; `def out init $s` copied the whole value, the
-  cursor's file bytes and the sheet's cell map included. A reference is
+  function that returns a changed sheet or workbook copies it once, not
+  twice. The row cursor is copied for every row, so what it carries is
+  bytes, the file and the shared strings both: a `bytes` copy is one block
+  move, a list's is one copy per element. A reference is
   spelled once per row from the column names, not rebuilt per use. `sheetOf`
   is the way to build a sheet; `setRow` per row is quadratic, as its
   docblock says. A consumer should read with `rows`, `row` or `valuesIn`
