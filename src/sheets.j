@@ -98,4 +98,5 @@ include "topics/gnumeric.j";
 include "topics/csvbridge.j";
 include "topics/export.j";
 include "topics/rows.j";
+include "topics/patch.j";
 include "topics/file.j";

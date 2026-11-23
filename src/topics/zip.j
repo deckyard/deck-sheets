@@ -126,8 +126,26 @@ func storedMember(name as string, data as bytes) {
  *   def parts as map of string to bytes init unzip($raw);
  */
 func unzip(raw as bytes) {
-    checkDeclaredSize($raw);
     def out as map of string to bytes init {};
+    for (def entry in unpackEntries($raw)) {
+        $out[$entry.name] = $entry.data;
+    }
+    return $out;
+}
+
+/**
+ * Read a ZIP container's members in archive order.
+ *
+ * As {@link unzip}, for a caller that writes the container back and keeps
+ * its order.
+ *
+ * @param raw {bytes} the archive
+ * @return {list of archive.Entry} the members
+ * @throws {Error} kind "sheets" when the archive cannot be read; kind "limit"
+ *   when it declares more than this reader inflates, or `archive` reaches a cap
+ */
+func unpackEntries(raw as bytes) {
+    checkDeclaredSize($raw);
     def entries as list of archive.Entry init [];
     try {
         $entries = archive.unpack("zip", $raw);
@@ -138,10 +156,7 @@ func unzip(raw as bytes) {
         }
         fail("not a readable ZIP container: " + $e.message);
     }
-    for (def entry in $entries) {
-        $out[$entry.name] = $entry.data;
-    }
-    return $out;
+    return $entries;
 }
 
 /**

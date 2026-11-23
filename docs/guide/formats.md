@@ -37,6 +37,7 @@ first sheet.
 | sheet names | yes | yes | yes | no |
 | styles (fonts, colours, borders) | yes | yes | yes | no |
 | number format code | yes | yes | yes | no |
+| column widths, frozen panes | yes | yes | no | no |
 
 ODS and XLSX keep everything the model holds, in a round trip and in a
 conversion between them. Gnumeric loses a formula's cached result and turns a
@@ -83,6 +84,39 @@ shared string table and an indexed style sheet.
   the two date formats it needs.
 - **Absent cells are not written.** A cell carries its own reference, and the
   reader trusts `r` over position.
+- **Excel's extension attributes** (`x14ac:dyDescent` on nearly every row of a
+  file Excel 2010 or later saved) are declared on `<worksheet>`; both readers
+  carry those declarations into each row they decode.
+- **Built-in number formats** are written by their id, as Excel writes them:
+  `@` is 49, `0.00` is 2. Date and time codes are always written as the file's
+  own formats, because Excel draws its built-in date ids in each reader's
+  locale.
+
+### Changing cells of an existing file
+
+A read and a write rebuild every part from the model, so whatever the model
+does not hold (charts, defined names, conditional formats) is gone, and the
+styles and shared strings are renumbered. To fill in a few cells of someone
+else's workbook, patch it instead:
+
+```jennifer
+def raw as bytes init fs.readBytes("report.xlsx");
+fs.writeBytes("report.xlsx", sheet.patchXlsx($raw, "Summary", {
+    "D2": sheet.number(1250.0),
+    "D3": sheet.text("checked")
+}));
+```
+
+Every other part keeps its bytes, and so do the untouched rows and cells of
+the sheet. A replaced cell keeps its style. Text is written inline, so the
+shared string table is not touched; `Empty` clears a value and keeps the
+style. A formula goes in with the cached result its `Value` carries.
+
+Refused rather than written wrong: the cell holding a shared formula other
+cells use, a cell inside an array formula, and a date in a cell without a
+date format. When a formula cell gets a plain value, `calcChain.xml` would
+point at a cell with no formula, so it is dropped and Excel rebuilds it.
+A worksheet written with a namespace prefix, or one cut short, is not patched.
 
 ## Gnumeric
 

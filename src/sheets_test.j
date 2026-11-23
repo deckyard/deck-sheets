@@ -54,4 +54,5 @@ include "topics/gnumeric_test.j";
 include "topics/csvbridge_test.j";
 include "topics/export_test.j";
 include "topics/rows_test.j";
+include "topics/patch_test.j";
 include "topics/file_test.j";
