@@ -8,7 +8,8 @@ Read, edit and write OpenDocument (`.ods`), Office Open XML (`.xlsx`),
 Gnumeric and delimited text from [Jennifer](https://jennifer-lang.dev/), over
 one `Workbook` model of typed cells. It translates formulas between the ODS and
 XLSX dialects, evaluates about 110 spreadsheet functions, applies number
-formats and styles, streams sheets too large to hold in memory, and exports to
+formats, styles, column widths and frozen panes, streams sheets too large to
+hold in memory, sets cells of an existing XLSX file in place, and exports to
 HTML, JSON and PDF.
 
 **[Documentation](https://deckyard.github.io/deck-sheets/)**
