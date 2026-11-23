@@ -2247,10 +2247,12 @@ export func builtinFormat(id as int) {
 /**
  * The built-in `numFmtId` that writes a format code, if one does.
  *
- * Only the ids every Excel shows the same way: the number, percent,
- * fraction, scientific, accounting, duration and text formats. The date and
- * time ids (14 to 22) are drawn in the reader's own locale, so a date code is
- * always written as the file's own format, to look as it was asked to.
+ * An application draws a built-in id in the reader's locale, not as the code
+ * says: LibreOffice in German shows id 9 (`0%`) as `8 %`, and the date and
+ * time ids follow the system's date format. So only the ids the format
+ * oracle has seen displayed the same in English and German are used: the
+ * plain numbers, scientific, the simple fraction and text. Every other code
+ * is written as the file's own format, to look as it was asked to.
  *
  * @param code {string} the format code
  * @return {int} the id, or `-1` when the code is not one of them
@@ -2259,7 +2261,7 @@ export func builtinFormat(id as int) {
  *   builtinFormatId("0.000");  # -1
  */
 func builtinFormatId(code as string) {
-    for (def id in [1, 2, 3, 4, 9, 10, 11, 12, 13, 37, 38, 39, 40, 45, 46, 47, 48, 49]) {
+    for (def id in [1, 2, 3, 4, 11, 12, 49]) {
         if (builtinFormat($id) == $code) {
             return $id;
         }

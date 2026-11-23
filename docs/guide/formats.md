@@ -87,10 +87,11 @@ shared string table and an indexed style sheet.
 - **Excel's extension attributes** (`x14ac:dyDescent` on nearly every row of a
   file Excel 2010 or later saved) are declared on `<worksheet>`; both readers
   carry those declarations into each row they decode.
-- **Built-in number formats** are written by their id, as Excel writes them:
-  `@` is 49, `0.00` is 2. Date and time codes are always written as the file's
-  own formats, because Excel draws its built-in date ids in each reader's
-  locale.
+- **Built-in number formats** are written by their id, as Excel writes them,
+  where the id displays the same in every locale: `@` is 49, `0.00` is 2.
+  Everything else, dates, times and percentages included, is written as the
+  file's own format: an application draws a built-in id in the reader's
+  locale (LibreOffice in German shows id 9, `0%`, as `8 %`).
 
 ### Changing cells of an existing file
 

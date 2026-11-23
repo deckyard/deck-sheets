@@ -63,13 +63,16 @@ func testABuiltInFormatIsWrittenByItsId() {
     $s = setStyle($s, "A1", withFormat(style(), "@"));
     $s = setStyle($s, "B1", withFormat(style(), "0.00"));
     $s = setStyle($s, "C1", withFormat(style(), "dd/mm/yyyy"));
+    $s = setStyle($s, "D1", withFormat(style(), "0%"));
     def raw as bytes init writeXlsx(addSheet(newWorkbook(), $s));
     def doc as string init encoding.decode("utf-8", unzip($raw)["xl/styles.xml"]);
     testing.assertTrue(strings.contains($doc, "numFmtId=\"49\""));
     testing.assertTrue(strings.contains($doc, "numFmtId=\"2\""));
     testing.assertFalse(strings.contains($doc, "formatCode=\"@\""));
     # A date code is the file's own: a built-in date id is drawn per locale.
+    # So is a percent, which LibreOffice in German draws as `8 %` for id 9.
     testing.assertTrue(strings.contains($doc, "formatCode=\"dd/mm/yyyy\""));
+    testing.assertTrue(strings.contains($doc, "formatCode=\"0%\""));
     def back as Sheet init sheetByName(readXlsx($raw), "S");
     testing.assertEqual(styleAt($back, "A1").format, "@");
     testing.assertEqual(styleAt($back, "B1").format, "0.00");
