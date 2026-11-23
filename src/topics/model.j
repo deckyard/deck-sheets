@@ -29,6 +29,7 @@
  * @field styles {list of Style} the distinct styles, index 0 the default
  * @field rowCount {int} one past the highest row index used
  * @field colCount {int} one past the highest column index used
+ * @field layout {SheetLayout} column widths and frozen panes
  */
 export def struct Sheet {
     name as string,
@@ -36,8 +37,42 @@ export def struct Sheet {
     cellStyles as map of string to int,
     styles as list of Style,
     rowCount as int,
-    colCount as int
+    colCount as int,
+    layout as SheetLayout
 };
+
+/**
+ * How a sheet is shown: its column widths and frozen panes.
+ *
+ * A width is in characters of the default font, the unit XLSX stores and
+ * Excel shows; ODS stores a length, converted at 5.25 points a character
+ * (a 7-pixel digit at 96 dpi). A column with no entry has the
+ * application's default width. Gnumeric and CSV carry no layout.
+ *
+ * @field columnWidths {map of string to float} the width per column name (`"B"`)
+ * @field frozenRows {int} how many rows at the top stay in view, 0 for none
+ * @field frozenColumns {int} how many columns at the left stay in view, 0 for none
+ */
+export def struct SheetLayout {
+    columnWidths as map of string to float,
+    frozenRows as int,
+    frozenColumns as int
+};
+
+/** How many points of ODS column width one character of XLSX width is. */
+def const POINTS_PER_CHARACTER as float init 5.25;
+
+/** The widest column XLSX allows, in characters. */
+export def const MAX_COLUMN_WIDTH as float init 255.0;
+
+/**
+ * The layout of a sheet nobody has arranged.
+ *
+ * @return {SheetLayout} default widths, nothing frozen
+ */
+func plainLayout() {
+    return SheetLayout{columnWidths: {}, frozenRows: 0, frozenColumns: 0};
+}
 
 /**
  * A workbook: an ordered list of sheets, and the date system they share.
@@ -88,7 +123,8 @@ export func newSheet(name as string) {
         cellStyles: {},
         styles: defaultStyleTable(),
         rowCount: 0,
-        colCount: 0
+        colCount: 0,
+        layout: plainLayout()
     };
 }
 
@@ -221,9 +257,14 @@ func styledSheetFrom(name as string, placed as list of Placed, styled as list of
         if (not onGrid($one.at) or isPlain($one.style)) {
             continue;
         }
-        def interned as StyleTable init internStyle($table, $one.style);
-        $table = $interned.styles;
-        $indices[cellRef($one.at)] = $interned.index;
+        # Searched read-only and grown in place: handing the table to a
+        # function and taking it back copied it once per styled cell.
+        def index as int init styleIndexIn($table, $one.style);
+        if ($index < 0) {
+            $table[] = $one.style;
+            $index = len($table) - 1;
+        }
+        $indices[cellRef($one.at)] = $index;
         if ($one.at.row + 1 > $rowCount) {
             $rowCount = $one.at.row + 1;
         }
@@ -309,7 +350,8 @@ func sheetFrom(name as string, placed as list of Placed) {
         cellStyles: {},
         styles: defaultStyleTable(),
         rowCount: $rowCount,
-        colCount: $colCount
+        colCount: $colCount,
+        layout: plainLayout()
     };
 }
 
@@ -386,22 +428,16 @@ export func setCell(s as Sheet, at as string, v as Value) {
  *   $s = setCellAt($s, ref(6, 1), number(42.5));
  */
 export func setCellAt(s as Sheet, at as Ref, v as Value) {
-    def out as Sheet init $s;
     def key as string init cellRef($at);
+    def cells as map of string to Value init $s.cells;
     if (isEmpty($v)) {
-        if (maps.has($out.cells, $key)) {
-            $out.cells = maps.delete($out.cells, $key);
+        if (maps.has($cells, $key)) {
+            $cells = maps.delete($cells, $key);
         }
-        return $out;
+        return sheetWith($s, $cells, $s.cellStyles, $s.styles, NO_REACH);
     }
-    $out.cells[$key] = $v;
-    if ($at.row + 1 > $out.rowCount) {
-        $out.rowCount = $at.row + 1;
-    }
-    if ($at.col + 1 > $out.colCount) {
-        $out.colCount = $at.col + 1;
-    }
-    return $out;
+    $cells[$key] = $v;
+    return sheetWith($s, $cells, $s.cellStyles, $s.styles, $at);
 }
 
 /**
@@ -476,19 +512,22 @@ export func setStyle(s as Sheet, at as string, st as Style) {
  */
 export func setStyleAt(s as Sheet, at as Ref, st as Style) {
     checkRowCol($at.row, $at.col);
-    def out as Sheet init $s;
     def key as string init cellRef($at);
+    def indices as map of string to int init $s.cellStyles;
     if (isPlain($st)) {
-        if (maps.has($out.cellStyles, $key)) {
-            $out.cellStyles = maps.delete($out.cellStyles, $key);
+        if (maps.has($indices, $key)) {
+            $indices = maps.delete($indices, $key);
         }
-        return $out;
+        return sheetWith($s, $s.cells, $indices, $s.styles, NO_REACH);
     }
-    def interned as StyleTable init internStyle($out.styles, $st);
-    $out.styles = $interned.styles;
-    $out.cellStyles[$key] = $interned.index;
-    $out = growTo($out, $at);
-    return $out;
+    def table as list of Style init $s.styles;
+    def index as int init styleIndexIn($table, $st);
+    if ($index < 0) {
+        $table[] = $st;
+        $index = len($table) - 1;
+    }
+    $indices[$key] = $index;
+    return sheetWith($s, $s.cells, $indices, $table, $at);
 }
 
 /**
@@ -508,22 +547,25 @@ export func setStyleAt(s as Sheet, at as Ref, st as Style) {
  */
 export func setAreaStyle(s as Sheet, ref as string, st as Style) {
     def box as Area init parseArea($ref);
-    def out as Sheet init $s;
     if (isPlain($st)) {
-        $out.cellStyles = withoutArea($out.cellStyles, $box);
-        return $out;
+        return sheetWith($s, $s.cells, withoutArea($s.cellStyles, $box), $s.styles, NO_REACH);
     }
-    def interned as StyleTable init internStyle($out.styles, $st);
-    $out.styles = $interned.styles;
-    def indices as map of string to int init $out.cellStyles;
+    def table as list of Style init $s.styles;
+    def index as int init styleIndexIn($table, $st);
+    if ($index < 0) {
+        $table[] = $st;
+        $index = len($table) - 1;
+    }
+    def indices as map of string to int init $s.cellStyles;
+    checkRowCol($box.to2.row, $box.to2.col);
+    def columns as list of string init columnNames($box.to2.col + 1);
     for (def r in $box.from.row..($box.to2.row + 1)) {
+        def rowText as string init convert.toString($r + 1);
         for (def c in $box.from.col..($box.to2.col + 1)) {
-            checkRowCol($r, $c);
-            $indices[cellRef(Ref{row: $r, col: $c})] = $interned.index;
+            $indices[$columns[$c] + $rowText] = $index;
         }
     }
-    $out.cellStyles = $indices;
-    return growTo($out, $box.to2);
+    return sheetWith($s, $s.cells, $indices, $table, $box.to2);
 }
 
 /**
@@ -535,9 +577,11 @@ export func setAreaStyle(s as Sheet, ref as string, st as Style) {
  */
 func withoutArea(indices as map of string to int, box as Area) {
     def kept as map of string to int init $indices;
+    def columns as list of string init columnNames($box.to2.col + 1);
     for (def r in $box.from.row..($box.to2.row + 1)) {
+        def rowText as string init convert.toString($r + 1);
         for (def c in $box.from.col..($box.to2.col + 1)) {
-            def key as string init cellRef(Ref{row: $r, col: $c});
+            def key as string init $columns[$c] + $rowText;
             if (maps.has($kept, $key)) {
                 $kept = maps.delete($kept, $key);
             }
@@ -547,58 +591,59 @@ func withoutArea(indices as map of string to int, box as Area) {
 }
 
 /**
- * A style table and where a style sits in it.
- *
- * @field styles {list of Style} the table
- * @field index {int} where the style was found or added
- */
-def struct StyleTable {
-    styles as list of Style,
-    index as int
-};
-
-/**
- * Find a style in a table, adding it when it is not there.
- *
- * Linear in the table's size, which is the right trade: a sheet has a handful
- * of distinct styles and thousands of cells, so the lookup is cheap and the
- * alternative - keying a map by a rendering of the style - costs a string per
- * call.
+ * Where a style sits in a table.
  *
  * @param styles {list of Style} the table
  * @param st {Style} the style to find
- * @return {StyleTable} the table and the style's index
+ * @return {int} its index, or -1 when it is not there
  */
-func internStyle(styles as list of Style, st as Style) {
+func styleIndexIn(styles as list of Style, st as Style) {
     for (def i in 0..len($styles)) {
         if ($styles[$i] == $st) {
-            return StyleTable{styles: $styles, index: $i};
+            return $i;
         }
     }
-    def grown as list of Style init $styles;
-    $grown[] = $st;
-    return StyleTable{styles: $grown, index: len($grown) - 1};
+    return -1;
 }
 
 /**
- * Grow a sheet's extent to cover a reference.
- *
- * A style can sit on an empty cell, so the extent has to follow styles as
- * well as values or a styled blank row would not be written.
- *
- * @param s {Sheet} the sheet
- * @param at {Ref} the reference to cover
- * @return {Sheet} a fresh sheet whose extent covers it
+ * A reach that grows no extent, for {@link sheetWith}.
  */
-func growTo(s as Sheet, at as Ref) {
-    def out as Sheet init $s;
-    if ($at.row + 1 > $out.rowCount) {
-        $out.rowCount = $at.row + 1;
-    }
-    if ($at.col + 1 > $out.colCount) {
-        $out.colCount = $at.col + 1;
-    }
-    return $out;
+def const NO_REACH as Ref init Ref{row: -1, col: -1};
+
+/**
+ * A sheet with new cell and style tables, its extent grown to cover a cell.
+ *
+ * Every changing function builds its result here, from the fields of a
+ * parameter it never writes, so the tables it did not change are shared
+ * rather than copied: `def out as Sheet init $s` deep-copied the whole sheet,
+ * cell map included, on every call.
+ *
+ * A style can sit on an empty cell, so the extent follows styles as well as
+ * values or a styled blank row would not be written.
+ *
+ * @param s {Sheet} the sheet it is based on
+ * @param cells {map of string to Value} the cells
+ * @param cellStyles {map of string to int} the style indices
+ * @param styles {list of Style} the style table
+ * @param reach {Ref} a cell the extent must cover, or {@link NO_REACH}
+ * @return {Sheet} the sheet
+ */
+func sheetWith(
+    s as Sheet,
+    cells as map of string to Value,
+    cellStyles as map of string to int,
+    styles as list of Style,
+    reach as Ref) {
+    return Sheet{
+        name: $s.name,
+        cells: $cells,
+        cellStyles: $cellStyles,
+        styles: $styles,
+        rowCount: math.max($s.rowCount, $reach.row + 1),
+        colCount: math.max($s.colCount, $reach.col + 1),
+        layout: $s.layout
+    };
 }
 
 /**
@@ -613,6 +658,106 @@ func growTo(s as Sheet, at as Ref) {
  */
 export func clearCell(s as Sheet, at as string) {
     return setCell($s, $at, Value.Empty);
+}
+
+/**
+ * Set a column's width.
+ *
+ * @param s {Sheet} the sheet
+ * @param column {string} the column name, such as `"B"`
+ * @param width {float} the width in characters of the default font; `0.0`
+ *   returns the column to the application's default
+ * @return {Sheet} a fresh sheet with the width set
+ * @throws {Error} kind "sheets" when the column name is malformed, or the
+ *   width is negative or past `MAX_COLUMN_WIDTH`
+ * @example
+ *   $s = setColumnWidth($s, "B", 24.0);
+ */
+export func setColumnWidth(s as Sheet, column as string, width as float) {
+    def key as string init columnName(columnIndex($column));
+    if ($width < 0.0 or $width > MAX_COLUMN_WIDTH) {
+        fail("a column width must be from 0 to " + convert.toString(MAX_COLUMN_WIDTH) +
+            " characters, got " + convert.toString($width));
+    }
+    def layout as SheetLayout init $s.layout;
+    if ($width == 0.0) {
+        if (maps.has($layout.columnWidths, $key)) {
+            $layout.columnWidths = maps.delete($layout.columnWidths, $key);
+        }
+    } else {
+        $layout.columnWidths[$key] = $width;
+    }
+    return withLayout($s, $layout);
+}
+
+/**
+ * A column's width.
+ *
+ * @param s {Sheet} the sheet
+ * @param column {string} the column name, such as `"B"`
+ * @return {float} the width in characters, `0.0` when the column has the default
+ * @throws {Error} kind "sheets" when the column name is malformed
+ * @example
+ *   columnWidth($s, "B");   # 24.0
+ */
+export func columnWidth(s as Sheet, column as string) {
+    def key as string init columnName(columnIndex($column));
+    if (not maps.has($s.layout.columnWidths, $key)) {
+        return 0.0;
+    }
+    return $s.layout.columnWidths[$key];
+}
+
+/**
+ * Freeze the top rows and the left columns, so they stay in view.
+ *
+ * @param s {Sheet} the sheet
+ * @param rows {int} how many rows to freeze, 0 for none
+ * @param columns {int} how many columns to freeze, 0 for none
+ * @return {Sheet} a fresh sheet with the panes frozen; `0, 0` unfreezes
+ * @throws {Error} kind "sheets" when a count is negative or past the grid
+ * @example
+ *   $s = freezePanes($s, 1, 0);   # keep the header row in view
+ */
+export func freezePanes(s as Sheet, rows as int, columns as int) {
+    checkRowCol($rows, $columns);
+    def layout as SheetLayout init $s.layout;
+    $layout.frozenRows = $rows;
+    $layout.frozenColumns = $columns;
+    return withLayout($s, $layout);
+}
+
+/**
+ * A sheet with another layout, sharing everything else.
+ *
+ * @param s {Sheet} the sheet
+ * @param layout {SheetLayout} the layout
+ * @return {Sheet} the sheet
+ */
+func withLayout(s as Sheet, layout as SheetLayout) {
+    return Sheet{
+        name: $s.name,
+        cells: $s.cells,
+        cellStyles: $s.cellStyles,
+        styles: $s.styles,
+        rowCount: $s.rowCount,
+        colCount: $s.colCount,
+        layout: $layout
+    };
+}
+
+/**
+ * The columns that have a width, in column order.
+ *
+ * @param layout {SheetLayout} the layout
+ * @return {list of int} the zero-based column indices
+ */
+func widenedColumns(layout as SheetLayout) {
+    def out as list of int init [];
+    for (def name in $layout.columnWidths) {
+        $out[] = columnIndex($name);
+    }
+    return lists.sort($out);
 }
 
 /**
@@ -685,9 +830,22 @@ export func row(s as Sheet, row as int) {
  *   for (def r in rows($s)) { process($r); }
  */
 export func rows(s as Sheet) {
+    # The column names are spelled once and each row number once per row:
+    # going through cellAt built every reference from scratch.
+    def columns as list of string init columnNames($s.colCount);
     def out as list of list of Value init [];
     for (def r in 0..$s.rowCount) {
-        $out[] = row($s, $r);
+        def rowText as string init convert.toString($r + 1);
+        def line as list of Value init [];
+        for (def c in 0..$s.colCount) {
+            def key as string init $columns[$c] + $rowText;
+            if (maps.has($s.cells, $key)) {
+                $line[] = $s.cells[$key];
+            } else {
+                $line[] = Value.Empty;
+            }
+        }
+        $out[] = $line;
     }
     return $out;
 }
@@ -740,13 +898,13 @@ export func valuesIn(s as Sheet, ref as string) {
  */
 export func setRow(s as Sheet, row as int, values as list of Value) {
     checkRowCol($row, 0);
-    def out as Sheet init $s;
-    def cells as map of string to Value init $out.cells;
-    def rowCount as int init $out.rowCount;
-    def colCount as int init $out.colCount;
+    def cells as map of string to Value init $s.cells;
+    def rowCount as int init $s.rowCount;
+    def colCount as int init $s.colCount;
+    def rowText as string init convert.toString($row + 1);
     for (def c in 0..len($values)) {
         checkRowCol($row, $c);
-        def key as string init cellRef(Ref{row: $row, col: $c});
+        def key as string init columnName($c) + $rowText;
         if (isEmpty($values[$c])) {
             if (maps.has($cells, $key)) {
                 $cells = maps.delete($cells, $key);
@@ -761,10 +919,15 @@ export func setRow(s as Sheet, row as int, values as list of Value) {
             $colCount = $c + 1;
         }
     }
-    $out.cells = $cells;
-    $out.rowCount = $rowCount;
-    $out.colCount = $colCount;
-    return $out;
+    return Sheet{
+        name: $s.name,
+        cells: $cells,
+        cellStyles: $s.cellStyles,
+        styles: $s.styles,
+        rowCount: $rowCount,
+        colCount: $colCount,
+        layout: $s.layout
+    };
 }
 
 /**
@@ -792,14 +955,19 @@ export func sheetOf(name as string, lines as list of list of Value) {
     def cells as map of string to Value init {};
     def rowCount as int init 0;
     def colCount as int init 0;
+    def columns as list of string init [];
     for (def r in 0..len($lines)) {
         def line as list of Value init $lines[$r];
+        def rowText as string init convert.toString($r + 1);
         for (def c in 0..len($line)) {
             if (isEmpty($line[$c])) {
                 continue;
             }
             checkRowCol($r, $c);
-            $cells[cellRef(Ref{row: $r, col: $c})] = $line[$c];
+            while (len($columns) <= $c) {
+                $columns[] = columnName(len($columns));
+            }
+            $cells[$columns[$c] + $rowText] = $line[$c];
             if ($r + 1 > $rowCount) {
                 $rowCount = $r + 1;
             }
@@ -814,7 +982,8 @@ export func sheetOf(name as string, lines as list of list of Value) {
         cellStyles: {},
         styles: defaultStyleTable(),
         rowCount: $rowCount,
-        colCount: $colCount
+        colCount: $colCount,
+        layout: plainLayout()
     };
 }
 
@@ -925,17 +1094,21 @@ export func sheetNames(wb as Workbook) {
  *   $wb = putSheet($wb, $s);
  */
 export func putSheet(wb as Workbook, s as Sheet) {
-    def out as Workbook init $wb;
-    for (def i in 0..len($out.sheets)) {
-        if ($out.sheets[$i].name == $s.name) {
-            $out.sheets[$i] = $s;
-            return $out;
+    # Built from the unwritten parameter's fields: copying the workbook first
+    # and then its sheet list copied every sheet twice.
+    def sheets as list of Sheet init $wb.sheets;
+    def replaced as bool init false;
+    for (def i in 0..len($sheets)) {
+        if ($sheets[$i].name == $s.name) {
+            $sheets[$i] = $s;
+            $replaced = true;
+            break;
         }
     }
-    def sheets as list of Sheet init $out.sheets;
-    $sheets[] = $s;
-    $out.sheets = $sheets;
-    return $out;
+    if (not $replaced) {
+        $sheets[] = $s;
+    }
+    return Workbook{sheets: $sheets, date1904: $wb.date1904};
 }
 
 /**
@@ -952,11 +1125,9 @@ export func addSheet(wb as Workbook, s as Sheet) {
     if (hasSheet($wb, $s.name)) {
         fail("the workbook already has a sheet named " + quoted($s.name));
     }
-    def out as Workbook init $wb;
-    def sheets as list of Sheet init $out.sheets;
+    def sheets as list of Sheet init $wb.sheets;
     $sheets[] = $s;
-    $out.sheets = $sheets;
-    return $out;
+    return Workbook{sheets: $sheets, date1904: $wb.date1904};
 }
 
 /**
@@ -1005,12 +1176,11 @@ export func renameSheet(wb as Workbook, from as string, to2 as string) {
         fail("the workbook already has a sheet named " + quoted($to2));
     }
     checkSheetName($to2);
-    def out as Workbook init $wb;
-    for (def i in 0..len($out.sheets)) {
-        if ($out.sheets[$i].name == $from) {
-            $out.sheets[$i].name = $to2;
-            return $out;
+    def sheets as list of Sheet init $wb.sheets;
+    for (def i in 0..len($sheets)) {
+        if ($sheets[$i].name == $from) {
+            $sheets[$i].name = $to2;
         }
     }
-    return $out;
+    return Workbook{sheets: $sheets, date1904: $wb.date1904};
 }
