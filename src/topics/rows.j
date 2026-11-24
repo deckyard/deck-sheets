@@ -8,12 +8,14 @@
 /**
  * A cursor over one sheet's rows.
  *
- * A `Workbook` holds every cell of every sheet. A 500,000-cell sheet costs
- * around 5 GB as a tree and 52 MB through this, because the only things alive
- * at once are the sheet's bytes and the row being looked at.
+ * A `Workbook` holds every cell of every sheet. Through a cursor the only
+ * things alive at once are the sheet's markup and the row being looked at.
  *
- * The sheet's bytes are read once and the rows walked in place, so there is
- * nothing to close. The calling shape is `$r = nextRow($r)`:
+ * The sheet is read once and its rows walked in place, so there is nothing to
+ * close. The markup waits in `rest` as strings, which copy in constant time,
+ * and moves into the `src` window a slice at a time, so a cursor that is
+ * copied for every row (one held in a top-level variable is) copies the window
+ * and not the sheet. The calling shape is `$r = nextRow($r)`:
  *
  *     def r as RowReader init openRows("huge.xlsx", "Sheet1");
  *     while (hasRow($r)) {
@@ -21,9 +23,9 @@
  *         process(rowValues($r));
  *     }
  *
- * @field src {bytes} the part holding the sheet
- * @field at {int} where the scan has reached
- * @field limit {int} where the sheet's rows end
+ * @field src {bytes} the window: the part of the sheet's rows being walked
+ * @field at {int} where the scan has reached in the window
+ * @field limit {int} where the window's markup ends
  * @field rowIndex {int} the zero-based index of the row just read
  * @field values {list of Value} the row just read, left to right
  * @field more {bool} whether another row is waiting
@@ -33,6 +35,8 @@
  * @field date1904 {bool} whether the workbook counts dates from 1904
  * @field namespaces {map of string to string} the prefixes declared around
  *   the rows, for XLSX, so a row decoded on its own can resolve them
+ * @field rest {list of string} the sheet's rows not yet moved into the
+ *   window, in slices of up to 256 KiB
  */
 export def struct RowReader {
     src as bytes,
@@ -45,8 +49,17 @@ export def struct RowReader {
     shared as SharedTable,
     dateStyles as map of string to bool,
     date1904 as bool,
-    namespaces as map of string to string
+    namespaces as map of string to string,
+    rest as list of string
 };
+
+/**
+ * How many bytes of markup a cursor moves into its window at a time.
+ *
+ * Large enough that refills are rare, small enough that copying the window
+ * for each row costs little next to decoding the row.
+ */
+def const ROW_WINDOW as int init 262144;
 
 /**
  * Open a cursor over a sheet of a file.
@@ -116,26 +129,58 @@ func openWholeSheetRows(raw as bytes, kind as Format, sheetName as string) {
         $parts[] = odsRowMarkup($line, $unstyled);
     }
     $parts[] = "</rows>";
-    return odsReaderOver(partsBytes($parts), Format.Ods);
-}
-
-/**
- * A cursor over the rows of a byte range holding ODS-shaped markup.
- *
- * @param src {bytes} the part
- * @param kind {Format} the format to report
- * @return {RowReader} the cursor
- * @throws {Error} kind "sheets" when the markup has no root element
- */
-func odsReaderOver(src as bytes, kind as Format) {
+    def src as bytes init partsBytes($parts);
     def root as Node init rootNode($src);
     if (not isNode($root)) {
         fail("the sheet has no rows to read");
     }
+    return readerOver($src, $root.openEnd, $root.innerEnd, Format.Ods);
+}
+
+/**
+ * A cursor over the rows in a byte range of a part.
+ *
+ * The range is cut into the cursor's `rest`, each cut moved back to the start
+ * of a character; the window starts empty and is filled by the first
+ * {@link hasRow} or {@link nextRow}.
+ *
+ * @param src {bytes} the part
+ * @param from {int} where the rows start
+ * @param limit {int} where they end
+ * @param kind {Format} the format to report
+ * @return {RowReader} the cursor
+ * @throws {Error} kind "sheets" when the rows are not UTF-8
+ */
+func readerOver(src as bytes, from as int, limit as int, kind as Format) {
+    def rest as list of string init [];
+    def at as int init $from;
+    while ($at < $limit) {
+        def cut as int init $at + ROW_WINDOW;
+        if ($cut >= $limit) {
+            $cut = $limit;
+        } else {
+            # Back off to the start of a character, so each slice decodes alone.
+            while ($cut > $at and $src[$cut] >= 0x80 and $src[$cut] < 0xc0) {
+                $cut = $cut - 1;
+            }
+            if ($cut == $at) {
+                $cut = $at + ROW_WINDOW;
+            }
+        }
+        try {
+            $rest[] = byteText($src, $at, $cut);
+        } catch (e) {
+            if (isGeneric($e.kind)) {
+                throw $e;
+            }
+            fail("the sheet's rows are not UTF-8: " + $e.message);
+        }
+        $at = $cut;
+    }
     return RowReader{
-        src: $src,
-        at: $root.openEnd,
-        limit: $root.innerEnd,
+        src: binary.make(0),
+        at: 0,
+        limit: 0,
         rowIndex: -1,
         values: [],
         more: true,
@@ -143,7 +188,8 @@ func odsReaderOver(src as bytes, kind as Format) {
         shared: packShared([]),
         dateStyles: {},
         date1904: false,
-        namespaces: {}
+        namespaces: {},
+        rest: $rest
     };
 }
 
@@ -173,10 +219,7 @@ func openOdsRows(raw as bytes, sheetName as string) {
     if (not isNode($table)) {
         fail("the workbook has no sheet named " + quoted($sheetName));
     }
-    def reader as RowReader init odsReaderOver($src, Format.Ods);
-    $reader.at = $table.openEnd;
-    $reader.limit = $table.innerEnd;
-    return $reader;
+    return readerOver($src, $table.openEnd, $table.innerEnd, Format.Ods);
 }
 
 /**
@@ -235,19 +278,16 @@ func openXlsxRows(raw as bytes, sheetName as string) {
     if (not isNode($sheetData)) {
         fail("the worksheet has no <sheetData>");
     }
-    return RowReader{
-        src: $src,
-        at: $sheetData.openEnd,
-        limit: $sheetData.innerEnd,
-        rowIndex: -1,
-        values: [],
-        more: true,
-        kind: Format.Xlsx,
-        shared: packShared(readSharedStrings($parts, $targets)),
-        dateStyles: readDateStyles($parts, $targets),
-        date1904: readDate1904($workbookPart),
-        namespaces: declaredPrefixes($src, [$root, $sheetData])
-    };
+    def reader as RowReader init readerOver(
+        $src,
+        $sheetData.openEnd,
+        $sheetData.innerEnd,
+        Format.Xlsx);
+    $reader.shared = packShared(readSharedStrings($parts, $targets));
+    $reader.dateStyles = readDateStyles($parts, $targets);
+    $reader.date1904 = readDate1904($workbookPart);
+    $reader.namespaces = declaredPrefixes($src, [$root, $sheetData]);
+    return $reader;
 }
 
 /**
@@ -325,7 +365,48 @@ export func hasRow(r as RowReader) {
     if (not $r.more) {
         return false;
     }
-    return isNode(peekRow($r));
+    def rowNode as Node init peekRow($r);
+    if (len($r.rest) == 0 or isWholeRow($rowNode)) {
+        return isNode($rowNode);
+    }
+    # The window ends before the next row does: look on in a widened copy,
+    # once per window, since this cursor cannot be handed back.
+    def wider as RowReader init $r;
+    while (len($wider.rest) > 0 and not isWholeRow($rowNode)) {
+        $wider = widen($wider);
+        $rowNode = peekRow($wider);
+    }
+    return isNode($rowNode);
+}
+
+/**
+ * Whether a row element found in the window is all there.
+ *
+ * A row cut off by the window's end reads as unclosed, or as no element at
+ * all when its open tag is cut. Either way the window needs more markup.
+ *
+ * @param rowNode {Node} what {@link peekRow} found
+ * @return {bool} whether it is a complete element
+ */
+func isWholeRow(rowNode as Node) {
+    return isNode($rowNode) and $rowNode.closed;
+}
+
+/**
+ * Move the next slice of `rest` into the window.
+ *
+ * The rows already read are dropped from the window first, so it holds at
+ * most one slice plus the unread tail of the last.
+ *
+ * @param r {RowReader} the cursor, with `rest` not empty
+ * @return {RowReader} the cursor with a wider window
+ */
+func widen(r as RowReader) {
+    $r.src = binary.concat($r.src[$r.at..$r.limit], encoding.encode("utf-8", $r.rest[0]));
+    $r.rest = $r.rest[1..];
+    $r.at = 0;
+    $r.limit = len($r.src);
+    return $r;
 }
 
 /**
@@ -368,6 +449,10 @@ func isRowElement(node as Node) {
  */
 export func nextRow(r as RowReader) {
     def rowNode as Node init peekRow($r);
+    while (len($r.rest) > 0 and not isWholeRow($rowNode)) {
+        $r = widen($r);
+        $rowNode = peekRow($r);
+    }
     if (not isNode($rowNode)) {
         fail("there is no row left to read; test with hasRow first");
     }
@@ -380,23 +465,13 @@ export func nextRow(r as RowReader) {
         }
         else { $values = odsRowValues($r, $rowNode); }
     }
-    # Every field of the cursor is copied for each row, whichever way the new
-    # cursor is built. That is why the big parts are bytes: a bytes copy is
-    # one block move, where a list of 17,500 strings cost 1.2 ms a row, a
-    # copy of every element.
-    return RowReader{
-        src: $r.src,
-        at: $rowNode.end,
-        limit: $r.limit,
-        rowIndex: $rowIndex,
-        values: $values,
-        more: true,
-        kind: $r.kind,
-        shared: $r.shared,
-        dateStyles: $r.dateStyles,
-        date1904: $r.date1904,
-        namespaces: $r.namespaces
-    };
+    # Updated in place and handed back: called as `$r = nextRow($r)` from a
+    # function, the cursor moves in and out without a copy. A new literal
+    # would copy `src` and `shared` out of the parameter for every row.
+    $r.at = $rowNode.end;
+    $r.rowIndex = $rowIndex;
+    $r.values = $values;
+    return $r;
 }
 
 /**

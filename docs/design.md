@@ -79,9 +79,11 @@ Out of scope:
   instead of threading them through helpers, walks sheets by index, reads
   cells through an inline chain, and lexes over a character list. A
   function that returns a changed sheet or workbook copies it once, not
-  twice. The row cursor is copied for every row, so what it carries is
-  bytes, the file and the shared strings both: a `bytes` copy is one block
-  move, a list's is one copy per element. A reference is
+  twice. `nextRow` updates the cursor in place, and a cursor held in a
+  top-level variable is still copied for every row, so it carries the sheet
+  as strings (a string copies in constant time) and only a 256 KiB window of
+  it as `bytes`; the shared strings are `bytes`, one block move where a
+  list copies per element. A reference is
   spelled once per row from the column names, not rebuilt per use. `sheetOf`
   is the way to build a sheet; `setRow` per row is quadratic, as its
   docblock says. A consumer should read with `rows`, `row` or `valuesIn`

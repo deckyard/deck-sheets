@@ -272,9 +272,9 @@ Treat it as opaque and use the functions above.
 
 | Field | What it holds |
 | --- | --- |
-| `src as bytes` | the part holding the sheet |
-| `at as int` | scan position |
-| `limit as int` | end of the sheet's rows |
+| `src as bytes` | the window: the part of the sheet's rows being walked |
+| `at as int` | scan position in the window |
+| `limit as int` | end of the window's markup |
 | `rowIndex as int` | zero-based index of the current row |
 | `values as list of Value` | the current row |
 | `more as bool` | whether another row is waiting |
@@ -283,11 +283,12 @@ Treat it as opaque and use the functions above.
 | `dateStyles as map of string to bool` | XLSX styles that mean a date |
 | `date1904 as bool` | the workbook's date system |
 | `namespaces as map of string to string` | XLSX namespace prefixes declared around the rows |
+| `rest as list of string` | the sheet's rows not yet in the window, in slices |
 
 ### `SharedTable`
 
-The cursor's shared string table, packed into bytes so carrying it from row
-to row costs nothing. Opaque.
+The cursor's shared string table, packed into bytes so a copy of the cursor
+moves one block, not one string at a time. Opaque.
 
 | Field | What it holds |
 | --- | --- |

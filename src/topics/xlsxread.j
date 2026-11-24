@@ -1504,10 +1504,10 @@ func sharedString(shared as SharedTable, rawIndex as string) {
  * The shared string table, packed into bytes.
  *
  * `text` is every string's UTF-8 run together, and `ends` each string's end
- * offset in it as four little-endian bytes. A row cursor is rebuilt for every
- * row, and a `bytes` field costs nothing to carry over where a
- * `list of string` costs time in proportion to its length: 1.2 ms a row for
- * 17,500 strings.
+ * offset in it as four little-endian bytes. A row cursor held in a top-level
+ * variable is copied for every row, and a `bytes` field copies as one block
+ * where a `list of string` costs time per element: 1.2 ms a row for 17,500
+ * strings.
  *
  * @field text {bytes} the strings, back to back
  * @field ends {bytes} the end offset of each, 4 bytes little-endian

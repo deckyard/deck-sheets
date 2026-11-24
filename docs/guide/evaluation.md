@@ -127,20 +127,15 @@ Taking the first cell instead would give answers that look right and are not.
 
 ## Cost
 
-On one host:
+Called from a program on Jennifer 0.27.0, on one host (best of five):
 
 | Work | Time |
 |---|---|
-| `SUM` over 5 000 cells | 160 ms |
-| `SUM` over 50 000 cells | 1.5 s |
-| recalculating 4 000 formula cells | 1.5 s |
-| a 2 000-cell dependency chain | 1.6 s |
-| parsing a 100-token formula | 28 ms |
+| `SUM` over 5 000 cells | 0.6 s |
+| `SUM` over 50 000 cells | 5.9 s |
+| recalculating 4 000 formula cells | 6.6 s |
+| a 2 000-cell dependency chain | 1.8 s |
+| parsing a 100-token formula | 51 ms |
 
 Parsing is the only superlinear step, and `MAX_FORMULA_TOKENS` bounds it. See
 [Memory](../internal/memory.md).
-
-The times are measured inside the deck. Called from your own program on
-jennifer 0.25.0, the evaluator copies the workbook it is handed far more often,
-and 1 000 formula cells take about 8 s; jennifer 0.26.0 removes those copies
-(about 0.8 s).

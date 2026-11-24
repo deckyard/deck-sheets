@@ -30,7 +30,7 @@ find each row with the scanner and hold no more than that row. Streaming the
 | | peak RSS |
 |---|---|
 | `xml.decode` of the whole sheet | 5.11 GB |
-| `openRows` | 148 MB |
+| `openRows`, Jennifer 0.27.0 | 490 MB |
 
 Three properties of the scanner are load-bearing:
 

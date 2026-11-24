@@ -264,3 +264,171 @@ func failOnStreamingAMissingFile() {
 func testOpenRowsRefusesAMissingFile() {
     testing.assertThrows("failOnStreamingAMissingFile", ERROR_KIND);
 }
+
+/**
+ * A string made of a piece repeated.
+ *
+ * @param piece {string} the piece
+ * @param times {int} how many times
+ * @return {string} the pieces joined
+ */
+func repeatedText(piece as string, times as int) {
+    def out as string init "";
+    def chunk as string init $piece;
+    def n as int init $times;
+    while ($n > 0) {
+        if ($n % 2 == 1) {
+            $out = $out + $chunk;
+        }
+        $chunk = $chunk + $chunk;
+        $n = $n // 2;
+    }
+    return $out;
+}
+
+/**
+ * An XLSX container around one sheet's `<sheetData>` content.
+ *
+ * @param rowsMarkup {string} the rows
+ * @return {bytes} the file
+ */
+func xlsxAroundRows(rowsMarkup as string) {
+    def members as list of Member init [];
+    $members[] = member(
+        "xl/workbook.xml",
+        encoding.encode(
+            "utf-8",
+            "<workbook xmlns:r=\"r\"><sheets><sheet name=\"S\" r:id=\"rId1\"/>" +
+                "</sheets></workbook>"));
+    $members[] = member(
+        "xl/_rels/workbook.xml.rels",
+        encoding.encode(
+            "utf-8",
+            "<Relationships><Relationship Id=\"rId1\" " +
+                "Target=\"worksheets/sheet1.xml\"/></Relationships>"));
+    $members[] = member(
+        "xl/worksheets/sheet1.xml",
+        encoding.encode(
+            "utf-8",
+            "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">" +
+                "<sheetData>" + $rowsMarkup + "</sheetData></worksheet>"));
+    return zip($members);
+}
+
+/**
+ * Whether a sheet streams to the same rows the whole read gives.
+ *
+ * @param raw {bytes} the file
+ * @param kind {Format} the format
+ */
+func assertStreamMatchesWholeRead(raw as bytes, kind as Format) {
+    def streamed as list of list of string init streamRows($raw, $kind, "");
+    def s as Sheet init readFormat($raw, $kind).sheets[0];
+    testing.assertEqual(len($streamed), $s.rowCount);
+    for (def i in 0..len($streamed)) {
+        def whole as list of Value init row($s, $i);
+        testing.assertEqual(len($streamed[$i]), len(trimTrailingEmpty($whole)));
+        for (def c in 0..len($streamed[$i])) {
+            testing.assertEqual($streamed[$i][$c], asString($whole[$c]));
+        }
+    }
+}
+
+func testTheCursorReadsAcrossWindowRefills() {
+    # Over a megabyte of rows, so the window is refilled several times: cuts
+    # land inside rows, tags, comments and multi-byte characters, and one row
+    # is longer than a window on its own.
+    def parts as list of string init [];
+    for (def i in 1..9) {
+        def body as string init repeatedText("ä€x" + convert.toString($i), 12000 + $i * 997);
+        $parts[] = "<row r=\"" + convert.toString($i) + "\"><c r=\"A" + convert.toString($i) +
+            "\"><v>" + convert.toString($i) + "</v></c><c r=\"C" + convert.toString($i) +
+            "\" t=\"inlineStr\"><is><t>" + $body + "</t></is></c></row>";
+        $parts[] = "<!--" + repeatedText("-x", 3001) + "-->";
+    }
+    $parts[] = "<row r=\"9\"><c r=\"B9\" t=\"inlineStr\"><is><t>" +
+        repeatedText("ü", ROW_WINDOW * 2 + 17) + "</t></is></c></row>";
+    $parts[] = "<row r=\"10\"><c r=\"A10\" t=\"b\"><v>1</v></c></row>";
+    assertStreamMatchesWholeRead(xlsxAroundRows(strings.join($parts, "")), Format.Xlsx);
+}
+
+func testTheOdsCursorReadsAcrossWindowRefills() {
+    def lines as list of list of Value init [];
+    for (def i in 0..12) {
+        $lines[] = [number($i * 1.0), text(repeatedText("ö" + convert.toString($i), 25000 + $i))];
+    }
+    def raw as bytes init writeOds(addSheet(newWorkbook(), sheetOf("S", $lines)));
+    assertStreamMatchesWholeRead($raw, Format.Ods);
+}
+
+func testTheWindowStaysBoundedOnALongSheet() {
+    # The cursor is copied for every row by a caller that keeps it in a
+    # top-level variable, so it must not carry the whole sheet as bytes.
+    def parts as list of string init [];
+    for (def i in 1..2001) {
+        $parts[] = "<row r=\"" + convert.toString($i) + "\"><c t=\"inlineStr\"><is><t>" +
+            repeatedText("y", 500) + "</t></is></c></row>";
+    }
+    def r as RowReader init openRowsFromBytes(
+        xlsxAroundRows(strings.join($parts, "")),
+        Format.Xlsx,
+        "");
+    def rowsRead as int init 0;
+    def widest as int init 0;
+    while (hasRow($r)) {
+        $r = nextRow($r);
+        $rowsRead = $rowsRead + 1;
+        if (len($r.src) > $widest) {
+            $widest = len($r.src);
+        }
+    }
+    testing.assertEqual($rowsRead, 2000);
+    testing.assertTrue($widest <= ROW_WINDOW + 2000);
+}
+
+/**
+ * The best of three times for streaming every row of a file.
+ *
+ * @param raw {bytes} the file
+ * @return {int} nanoseconds
+ */
+func bestStreamNanos(raw as bytes) {
+    def best as int init -1;
+    for (def round in 0..3) {
+        def t0 as time.Time init time.now();
+        def r as RowReader init openRowsFromBytes($raw, Format.Xlsx, "");
+        while (hasRow($r)) {
+            $r = nextRow($r);
+        }
+        def took as int init time.sub(time.now(), $t0).nanos;
+        if ($best < 0 or $took < $best) {
+            $best = $took;
+        }
+    }
+    return $best;
+}
+
+/**
+ * A sheet of short rows, each padded with a comment so the sheet is large
+ * next to the work of decoding a row.
+ *
+ * @param count {int} the rows
+ * @return {bytes} the file
+ */
+func paddedRows(count as int) {
+    def pad as string init "<!--" + repeatedText("z", 4000) + "-->";
+    def parts as list of string init [];
+    for (def i in 1..$count + 1) {
+        $parts[] = "<row r=\"" + convert.toString($i) + "\"><c><v>" + convert.toString($i) +
+            "</v></c>" + $pad + "</row>";
+    }
+    return xlsxAroundRows(strings.join($parts, ""));
+}
+
+func testStreamingTimeGrowsLinearlyWithTheRows() {
+    # A cost per row that grows with the sheet (a copy of the sheet's bytes
+    # for every row) makes twice the rows take four times as long.
+    def once as int init bestStreamNanos(paddedRows(300));
+    def twice as int init bestStreamNanos(paddedRows(600));
+    testing.assertTrue($twice < $once * 5 // 2);
+}

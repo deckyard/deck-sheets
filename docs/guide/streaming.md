@@ -7,10 +7,12 @@
 thousands of cells, walk it a row at a time instead:
 
 ```jennifer
-def r as sheet.RowReader init sheet.openRows("huge.xlsx", "Sheet1");
-while (sheet.hasRow($r)) {
-    $r = sheet.nextRow($r);
-    process(sheet.rowStrings($r));
+func importRows(filePath as string) {
+    def r as sheet.RowReader init sheet.openRows($filePath, "Sheet1");
+    while (sheet.hasRow($r)) {
+        $r = sheet.nextRow($r);
+        process(sheet.rowStrings($r));
+    }
 }
 ```
 
@@ -25,19 +27,26 @@ name)` does the same over bytes already in memory. The reader is a value over
 those bytes, not a file handle: advance it with `$r = nextRow($r)`, and there
 is nothing to close.
 
+`nextRow` updates the cursor and hands it back, so inside a function
+`$r = nextRow($r)` moves it without a copy. A cursor in a top-level variable
+is copied on every call: its 256 KiB window of the sheet and the XLSX shared
+strings. Put the loop in a function.
+
 You see each row once, in order. For random access, read the workbook.
 
-## Memory
+## Cost
 
-A 25 000-row, 20-column XLSX (500 000 cells, 15 MB of sheet XML), on one host:
+A 25 000-row, 20-column XLSX (500 000 cells, 16 MB of sheet XML), on
+Jennifer 0.27.0, on one host:
 
-| | peak RSS |
-|---|---|
-| `xml.decode` of the sheet into a tree | 5.11 GB |
-| `openRows` | 148 MB |
+| | time | peak RSS |
+|---|---|---|
+| `open`, the whole workbook | 46 s | 4.9 GB |
+| `openRows` loop in a function | 41 s | 510 MB |
+| `openRows` loop at top level | 51 s | 490 MB |
 
-Reading the whole workbook at this size is slower still, since it also builds
-a cell map entry for every cell. See [Memory](../internal/memory.md).
+A row costs about what it costs in a whole read, in a tenth of the memory.
+See [Memory](../internal/memory.md).
 
 ## Formats
 
