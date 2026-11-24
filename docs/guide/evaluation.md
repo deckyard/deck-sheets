@@ -45,7 +45,7 @@ a sheet the workbook lacks or an expression that does not parse, with
 
 ## Spreadsheet semantics
 
-Each of these was checked against LibreOffice and Gnumeric, and
+Each of these was checked against LibreOffice™ and Gnumeric™, and
 `tools/formula-oracle.sh` re-checks them.
 
 | Expression | Answer | Why |
@@ -79,7 +79,7 @@ linear, not 2^n.
 
 | Limit | Value | Bounds | Past it |
 |---|---|---|---|
-| `MAX_FORMULA_DEPTH` | 64 | bracket nesting and runs of prefix operators such as `----1` (Excel's own nesting limit) | throws |
+| `MAX_FORMULA_DEPTH` | 64 | bracket nesting and runs of prefix operators such as `----1` (Excel™'s own nesting limit) | throws |
 | `MAX_FORMULA_TOKENS` | 512 | tokens in one formula; parsing is quadratic in it | throws |
 | `MAX_RESOLVED_CELLS` | 500 000 | cells one evaluation resolves | `#NUM!` |
 | `MAX_RANGE_CELLS` | 1 000 000 | cells one range covers | `#NUM!` |

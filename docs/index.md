@@ -4,7 +4,7 @@
 # @deckyard/sheets
 
 Read, edit and write OpenDocument (`.ods`), Office Open XML (`.xlsx`),
-Gnumeric and delimited text over one cell model.
+Gnumeric™ and delimited text over one cell model.
 
 This deck is part of [Deckyard](https://github.com/deckyard), community decks for [Jennifer](https://jennifer-lang.dev/).
 
@@ -39,7 +39,7 @@ workbook came from. Install with `jvc add @deckyard/sheets`; it needs Jennifer
   (`of:=[.B3]*[.C2]`) and the XLSX one (`B3*C2`) whenever a formula crosses
   formats.
 - [Evaluating formulas](guide/evaluation.md): about 110 functions,
-  checked against LibreOffice and Gnumeric.
+  checked against LibreOffice™ and Gnumeric.
 - [Number formats](guide/formats-applied.md): `displayAt` shows what an
   application would display; `asString` gives the value.
 - [Reading large sheets](guide/streaming.md): a row cursor that never holds
@@ -59,3 +59,12 @@ workbook came from. Install with `jvc add @deckyard/sheets`; it needs Jennifer
 - **Some number formats through ODS.** ODF cannot express a month's initial
   (`mmmmm` comes back as `mmm`) or `_x` / `*x` padding (dropped).
 - Charts, images, pivot tables, macros, and `.xls` (the old binary format).
+
+## Trademarks
+
+LibreOffice™ is a trademark of The Document Foundation. Microsoft™ and
+Excel™ are trademarks of Microsoft Corporation. Gnumeric™ and other product
+and company names may be trademarks of their respective owners. They are
+used only to identify the products this deck works with. This deck is an
+independent project, not affiliated with, sponsored or endorsed by The
+Document Foundation, Microsoft Corporation or the Gnumeric project.

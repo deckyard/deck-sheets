@@ -49,5 +49,5 @@ job.
 ## Reading
 
 `archive.unpack` reads the central directory, so it handles **data
-descriptors** (general-purpose bit 3, sizes after the payload), which Excel
+descriptors** (general-purpose bit 3, sizes after the payload), which Excel™
 emits. Tested.

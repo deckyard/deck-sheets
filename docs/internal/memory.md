@@ -118,7 +118,7 @@ functions and each writer keeps its list as a local:
 |---|---|---|
 | ODS | 12 100 ms | 156 ms |
 | XLSX | 831 ms | 127 ms |
-| Gnumeric | 1 125 ms | 93 ms |
+| Gnumeric™ | 1 125 ms | 93 ms |
 
 **In the formula tokeniser**, twice over. It passed its growing token list
 through a helper, and it read characters with `strings.substring($s, $i,
@@ -314,7 +314,7 @@ an ODS read.
 
 ## Locale
 
-Measured by running LibreOffice under `de_DE.UTF-8`.
+Measured by running LibreOffice™ under `de_DE.UTF-8`.
 
 Not locale-dependent:
 

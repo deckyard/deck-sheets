@@ -54,7 +54,7 @@ error only when continuing would mean inventing data.
 
 Every refusal has `kind: "sheets"`, except a reached cap (`MAX_NESTING`,
 `MAX_SHEET_CELLS`, a ZIP container's member count or declared content size,
-`MAX_EXPORT_ROWS`, the formula caps, a Gnumeric gzip member that expands past
+`MAX_EXPORT_ROWS`, the formula caps, a Gnumeric™ gzip member that expands past
 `compress`'s 256 MiB output cap, a row past the XML decoder's nesting or node
 cap), which has `kind: "limit"`. Tests cover this, including two cases that
 used to escape as `kind: "runtime"`: a 20-letter column name and a 40-digit
@@ -104,7 +104,7 @@ never walked. A file declaring five hundred whole-grid regions reads in
 
 Two scans over a format code are quadratic in its length: a code of 10 000
 unclosed brackets measured 49 s, and one of 100 000 commas did not finish.
-`MAX_FORMAT_CODE` (255, Excel's own limit and eight times the longest built-in
+`MAX_FORMAT_CODE` (255, Excel™'s own limit and eight times the longest built-in
 code) bounds it; a longer code renders the value plainly.
 
 Reading a file never applies a format. This matters only once you call

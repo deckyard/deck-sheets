@@ -86,7 +86,7 @@ digit arithmetic would overflow. See
 
 The renderings were checked against the applications, not taken from a
 specification. `tools/formula-oracle.sh` evaluates every code in
-`tools/formula-oracle.txt` here, in LibreOffice and in Gnumeric, and diffs the
+`tools/formula-oracle.txt` here, in LibreOffice™ and in Gnumeric™, and diffs the
 three. `tools/format-oracle.sh` writes a grid of formatted cells through the
 writers, has LibreOffice export each file as HTML, and compares the displayed
 text, once in English and once in German. Rules that look arbitrary but match
@@ -103,7 +103,7 @@ Where the applications disagree the engine follows the majority, and the case
 is listed at the top of `tools/formula-oracle.txt` with the reason. Three of
 them:
 
-- a serial below 61 falls on either side of Excel's 1900 leap-year bug;
+- a serial below 61 falls on either side of Excel™'s 1900 leap-year bug;
 - a fractional second is rounded here and by Gnumeric, truncated by
   LibreOffice;
 - a negative serial is not a date, the two show different days for it, and

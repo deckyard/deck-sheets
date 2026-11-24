@@ -19,7 +19,7 @@ sheet.formatName(sheet.Format.Ods);            # "ods"
 
 Extensions: `.ods`, `.xlsx`, `.xlsm`, `.gnumeric`, `.gnm`, `.csv`, `.tsv`,
 `.tab`. `formatOfBytes` recognises the two ZIP containers by their members, a
-gzip stream as Gnumeric, and uncompressed Gnumeric XML by its first 512 bytes.
+gzip stream as Gnumeric™, and uncompressed Gnumeric XML by its first 512 bytes.
 Delimited text has no signature and is not detected. Through `readFormat` and
 `writeFormat`, CSV and TSV are UTF-8, read with typing on, and written from the
 first sheet.
@@ -84,14 +84,14 @@ shared string table and an indexed style sheet.
   the two date formats it needs.
 - **Absent cells are not written.** A cell carries its own reference, and the
   reader trusts `r` over position.
-- **Excel's extension attributes** (`x14ac:dyDescent` on nearly every row of a
+- **Excel™'s extension attributes** (`x14ac:dyDescent` on nearly every row of a
   file Excel 2010 or later saved) are declared on `<worksheet>`; both readers
   carry those declarations into each row they decode.
 - **Built-in number formats** are written by their id, as Excel writes them,
   where the id displays the same in every locale: `@` is 49, `0.00` is 2.
   Everything else, dates, times and percentages included, is written as the
   file's own format: an application draws a built-in id in the reader's
-  locale (LibreOffice in German shows id 9, `0%`, as `8 %`).
+  locale (LibreOffice™ in German shows id 9, `0%`, as `8 %`).
 
 ### Changing cells of an existing file
 

@@ -6,7 +6,7 @@
 ## Scope
 
 The deck reads, edits and writes OpenDocument (`.ods`), Office Open XML
-(`.xlsx`) and Gnumeric spreadsheets, plus CSV and TSV, through one
+(`.xlsx`) and Gnumeric™ spreadsheets, plus CSV and TSV, through one
 value-semantic `Workbook` model. Around that model it translates formulas
 between the A1 and OpenFormula dialects, evaluates about 110 functions,
 applies number formats the way an application displays them, reads large
@@ -49,7 +49,7 @@ Out of scope:
   stack, so a chain of formulas is bounded by `MAX_RESOLVED_CELLS`, not by
   recursion depth. IF, IFERROR and the lookups receive unevaluated argument
   trees, so only the branch taken is evaluated.
-- **LibreOffice and Gnumeric are the reference, not the specification.**
+- **LibreOffice™ and Gnumeric are the reference, not the specification.**
   Evaluation and number-format display follow what those applications do,
   and the ODF number-style shapes were read off LibreOffice output.
   `General` is normalised to an empty format code, or ODF would write it as
@@ -59,7 +59,7 @@ Out of scope:
   which keeps memory proportional to the data. An XLSX row and a shared
   string are then handed to `xml.decode` whole: one native parse per row
   instead of an interpreted walk per cell, about thirty times faster. The
-  worksheet's namespace declarations go with them, because Excel declares
+  worksheet's namespace declarations go with them, because Excel™ declares
   its extension prefixes (`x14ac`) on `<worksheet>` and uses them on the rows.
   A row that does not decode is walked by the scanner, which reads what a
   damaged file still has. ODS cells are mixed content (`a<span>B</span>b`),
@@ -154,7 +154,7 @@ The Reading untrusted files guide documents each case; in short:
   Without them the oracles are skipped.
 - The examples need nothing external and run in the gate.
 
-Not covered: Microsoft Excel itself is not an oracle; XLSX output is checked
+Not covered: Microsoft™ Excel itself is not an oracle; XLSX output is checked
 through LibreOffice and Gnumeric.
 
 ## Known limitations and open questions

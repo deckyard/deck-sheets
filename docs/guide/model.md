@@ -72,8 +72,8 @@ $s = sheet.setColumnWidth($s, "A", 30.0);
 $s = sheet.freezePanes($s, 1, 0);   # keep the header row in view
 ```
 
-XLSX and ODS keep the layout; Gnumeric and CSV do not. Reading a file keeps
-the widths of the columns inside the sheet's extent only: Excel often gives
+XLSX and ODS keep the layout; Gnumeric™ and CSV do not. Reading a file keeps
+the widths of the columns inside the sheet's extent only: Excel™ often gives
 every column up to the grid's edge one width.
 
 ## Bulk access

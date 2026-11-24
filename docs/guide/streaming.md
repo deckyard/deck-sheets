@@ -41,5 +41,5 @@ a cell map entry for every cell. See [Memory](../internal/memory.md).
 
 ## Formats
 
-ODS and XLSX stream. Gnumeric and delimited text are read whole and handed
+ODS and XLSX stream. Gnumeric™ and delimited text are read whole and handed
 out row by row, so the same loop works for every format.

@@ -72,7 +72,7 @@ on write, or the application would show the serial.
 
 ## Round trips
 
-| | ODS | XLSX | Gnumeric |
+| | ODS | XLSX | Gnumeric™ |
 |---|---|---|---|
 | font, colours, alignment, wrap, border | yes | yes | yes |
 | number format code | through ODF's components | verbatim | verbatim |
@@ -83,7 +83,7 @@ what ODF cannot express. Gnumeric stores styles as rectangular regions; see
 [Formats](formats.md#gnumeric).
 
 `tools/validate-output.sh` exports all three formats to HTML through
-LibreOffice and checks that the fill, bold, centring and two number formats
+LibreOffice™ and checks that the fill, bold, centring and two number formats
 arrived. It is why the ODS writer uses `fo:font-family`: `style:font-name`
 refers to a font face that must be declared separately, and LibreOffice
 ignored it.

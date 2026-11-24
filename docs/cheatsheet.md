@@ -175,7 +175,7 @@ the canonical A1 spelling `cellRef` produces.
 
 ### `SheetLayout`
 
-How the sheet is shown. XLSX and ODS carry it; Gnumeric and CSV do not.
+How the sheet is shown. XLSX and ODS carry it; Gnumeric™ and CSV do not.
 Widths are kept for the columns inside the sheet's extent when a file is read.
 
 | Field | What it holds |

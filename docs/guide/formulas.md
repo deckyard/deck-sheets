@@ -44,7 +44,7 @@ implement: an empty result is honest, a stale one is not.
 ## The two dialects
 
 The model stores formulas in **A1** (`B3*C2`, `SUM(A1:A5)`), which is what a
-user types and what XLSX and Gnumeric store. ODS stores **OpenFormula**:
+user types and what XLSX and Gnumeric™ store. ODS stores **OpenFormula**:
 bracketed, dot-qualified references and `;` between arguments.
 
 | A1 | OpenFormula |
@@ -58,7 +58,7 @@ bracketed, dot-qualified references and `;` between arguments.
 
 The ODS codec calls `toA1Formula` and `toOpenFormula`, so a formula keeps its
 meaning across formats. Without them an ODS-to-XLSX conversion would hand
-Excel `[.B3]*[.C2]`.
+Excel™ `[.B3]*[.C2]`.
 
 The translator tokenises rather than searching and replacing:
 
