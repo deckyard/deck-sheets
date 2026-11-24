@@ -191,7 +191,8 @@ export func workbookWith(name as string) {
  *
  * A per-element cap bounds how far one run can be amplified, but not how many
  * runs a file carries, so a hostile file can still ask for more cells than
- * fit in memory. The model costs roughly 9 KB a cell, so this is the point
+ * fit in memory. The model costs roughly 9 KB a cell read from an xlsx on
+ * Jennifer 0.27.0 and about 1.8 KB from 0.28.0 on, so this is the point
  * past which a whole-sheet read would be the wrong tool anyway: it fails with
  * a message pointing at the streaming reader rather than being killed by the
  * kernel with nothing said.
