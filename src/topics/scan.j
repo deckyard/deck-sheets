@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.27.0
+# pragma-jennifer-version: >=0.28.0
 
 # sheets - the element scanner the XML codecs walk a document with.
 # Spliced into sheets.j via include - not a standalone module.
@@ -865,7 +865,7 @@ func decodeLeaf(src as bytes, node as Node, namespaces as map of string to strin
     def text as string init nodeBytes($src, $node);
     def tree as xml.Value init xml.element("empty");
     try {
-        $tree = xml.decode($text, $namespaces);
+        $tree = xml.decodeWith($text, xml.DecodeOptions{namespaces: $namespaces});
     } catch (e) {
         # the decoder's nesting and node caps are reached caps
         if (isGeneric($e.kind)) {

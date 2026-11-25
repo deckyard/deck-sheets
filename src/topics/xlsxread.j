@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.27.0
+# pragma-jennifer-version: >=0.28.0
 
 # sheets - the Office Open XML (xlsx) reader.
 # Spliced into sheets.j via include - not a standalone module.
@@ -262,7 +262,9 @@ func sharedStringsInBatches(src as bytes, root as Node, namespaces as map of str
         }
         def batch as xml.Value init xml.element("sst");
         try {
-            $batch = xml.decode("<sst>" + byteText($src, $at, $end) + "</sst>", $namespaces);
+            $batch = xml.decodeWith(
+                "<sst>" + byteText($src, $at, $end) + "</sst>",
+                xml.DecodeOptions{namespaces: $namespaces});
         } catch (e) {
             if (isGeneric($e.kind)) {
                 throw $e;

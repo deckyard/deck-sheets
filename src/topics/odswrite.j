@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.27.0
+# pragma-jennifer-version: >=0.28.0
 
 # sheets - the OpenDocument spreadsheet writer.
 # Spliced into sheets.j via include - not a standalone module.
@@ -799,7 +799,7 @@ func formulaValueAttrs(attrs as map of string to string, cached as string) {
  */
 func numberAttr(amount as float) {
     if ($amount == math.floor($amount) and math.abs($amount) < 1e15) {
-        return convert.toString(convert.toInt($amount));
+        return convert.toString(math.trunc($amount));
     }
     return convert.toString($amount);
 }

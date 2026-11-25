@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 # SPDX-FileCopyrightText: Copyright (C) 2026 mplx <mplx@jennifer-lang.dev>
-# pragma-jennifer-version: >=0.27.0
+# pragma-jennifer-version: >=0.28.0
 
 # sheets - reading a sheet one row at a time.
 # Spliced into sheets.j via include - not a standalone module.
@@ -313,7 +313,7 @@ func declaredPrefixes(src as bytes, nodes as list of Node) {
         }
         def tree as xml.Value init xml.element("empty");
         try {
-            $tree = xml.decode($tag, $out);
+            $tree = xml.decodeWith($tag, xml.DecodeOptions{namespaces: $out});
         } catch (e) {
             if (isGeneric($e.kind)) {
                 throw $e;

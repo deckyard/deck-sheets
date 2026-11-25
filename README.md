@@ -24,7 +24,7 @@ jvc vendors the deck's `src/` into `vendor/deckyard/sheets/`. Without jvc,
 unpack `src/` from a release archive (`deckyard-sheets-<version>.tar.gz`) into
 that directory.
 
-Requires Jennifer 0.27.0 or newer. No capabilities: no network, subprocesses
+Requires Jennifer 0.28.0 or newer. No capabilities: no network, subprocesses
 or database. `open` and `save` use `fs`; every codec also has a `bytes` entry
 point.
 
