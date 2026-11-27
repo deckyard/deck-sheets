@@ -61,6 +61,13 @@ def const MAX_MEMBERS as int init 65535;
 def const MAX_ARCHIVE as int init 4294967295;
 
 /**
+ * The longest member path this writer will store, in bytes.
+ *
+ * The headers carry the path's length in 16 bits. Refused rather than wrapped.
+ */
+def const MAX_NAME as int init 65535;
+
+/**
  * The most a container may inflate to: 256 MiB.
  *
  * `archive.unpack` cannot be bounded: it inflates every member and hands back
@@ -213,7 +220,7 @@ func checkDeclaredSize(raw as bytes) {
  * @return {int} the record's offset, or `-1` when there is none
  */
 func findEndRecord(raw as bytes) {
-    def probe as bytes init le32(SIG_END);
+    def probe as bytes init binary.fromUint("le", SIG_END, 4);
     def from as int init len($raw) - 22;
     def lowest as int init $from - 65535;
     if ($lowest < 0) {
@@ -320,6 +327,14 @@ func zip(members as list of Member) {
             $method = METHOD_STORE;
         }
         def sum as int init crc32Of($m.data);
+        if (len($nameBytes) > MAX_NAME) {
+            fail("a member path may be at most " + convert.toString(MAX_NAME) +
+                " bytes; this one is " + convert.toString(len($nameBytes)));
+        }
+        if (len($m.data) > MAX_ARCHIVE or len($encoded) > MAX_ARCHIVE) {
+            fail("the container is larger than the 4 GiB a ZIP without ZIP64 " +
+                "can address");
+        }
 
         $locals[] = localHeader($nameBytes, $method, $sum, len($encoded), len($m.data));
         $locals[] = $encoded;
@@ -339,6 +354,10 @@ func zip(members as list of Member) {
         }
     }
     def directory as bytes init binary.join($centrals);
+    if (len($directory) > MAX_ARCHIVE) {
+        fail("the container is larger than the 4 GiB a ZIP without ZIP64 " +
+            "can address");
+    }
     def out as list of bytes init [];
     $out[] = binary.join($locals);
     $out[] = $directory;
@@ -404,17 +423,17 @@ func localHeader(
     packedSize as int,
     plainSize as int) {
     def out as list of bytes init [];
-    $out[] = le32(SIG_LOCAL);
-    $out[] = le16(ZIP_VERSION);
-    $out[] = le16(0);
-    $out[] = le16($method);
-    $out[] = le16(0);
-    $out[] = le16(0);
-    $out[] = le32($sum);
-    $out[] = le32($packedSize);
-    $out[] = le32($plainSize);
-    $out[] = le16(len($nameBytes));
-    $out[] = le16(0);
+    $out[] = binary.fromUint("le", SIG_LOCAL, 4);
+    $out[] = binary.fromUint("le", ZIP_VERSION, 2);
+    $out[] = binary.fromUint("le", 0, 2);
+    $out[] = binary.fromUint("le", $method, 2);
+    $out[] = binary.fromUint("le", 0, 2);
+    $out[] = binary.fromUint("le", 0, 2);
+    $out[] = binary.fromUint("le", $sum, 4);
+    $out[] = binary.fromUint("le", $packedSize, 4);
+    $out[] = binary.fromUint("le", $plainSize, 4);
+    $out[] = binary.fromUint("le", len($nameBytes), 2);
+    $out[] = binary.fromUint("le", 0, 2);
     $out[] = $nameBytes;
     return binary.join($out);
 }
@@ -438,23 +457,23 @@ func centralHeader(
     plainSize as int,
     offset as int) {
     def out as list of bytes init [];
-    $out[] = le32(SIG_CENTRAL);
-    $out[] = le16(ZIP_VERSION);
-    $out[] = le16(ZIP_VERSION);
-    $out[] = le16(0);
-    $out[] = le16($method);
-    $out[] = le16(0);
-    $out[] = le16(0);
-    $out[] = le32($sum);
-    $out[] = le32($packedSize);
-    $out[] = le32($plainSize);
-    $out[] = le16(len($nameBytes));
-    $out[] = le16(0);
-    $out[] = le16(0);
-    $out[] = le16(0);
-    $out[] = le16(0);
-    $out[] = le32(0);
-    $out[] = le32($offset);
+    $out[] = binary.fromUint("le", SIG_CENTRAL, 4);
+    $out[] = binary.fromUint("le", ZIP_VERSION, 2);
+    $out[] = binary.fromUint("le", ZIP_VERSION, 2);
+    $out[] = binary.fromUint("le", 0, 2);
+    $out[] = binary.fromUint("le", $method, 2);
+    $out[] = binary.fromUint("le", 0, 2);
+    $out[] = binary.fromUint("le", 0, 2);
+    $out[] = binary.fromUint("le", $sum, 4);
+    $out[] = binary.fromUint("le", $packedSize, 4);
+    $out[] = binary.fromUint("le", $plainSize, 4);
+    $out[] = binary.fromUint("le", len($nameBytes), 2);
+    $out[] = binary.fromUint("le", 0, 2);
+    $out[] = binary.fromUint("le", 0, 2);
+    $out[] = binary.fromUint("le", 0, 2);
+    $out[] = binary.fromUint("le", 0, 2);
+    $out[] = binary.fromUint("le", 0, 4);
+    $out[] = binary.fromUint("le", $offset, 4);
     $out[] = $nameBytes;
     return binary.join($out);
 }
@@ -469,41 +488,13 @@ func centralHeader(
  */
 func endRecord(count as int, directorySize as int, directoryOffset as int) {
     def out as list of bytes init [];
-    $out[] = le32(SIG_END);
-    $out[] = le16(0);
-    $out[] = le16(0);
-    $out[] = le16($count);
-    $out[] = le16($count);
-    $out[] = le32($directorySize);
-    $out[] = le32($directoryOffset);
-    $out[] = le16(0);
+    $out[] = binary.fromUint("le", SIG_END, 4);
+    $out[] = binary.fromUint("le", 0, 2);
+    $out[] = binary.fromUint("le", 0, 2);
+    $out[] = binary.fromUint("le", $count, 2);
+    $out[] = binary.fromUint("le", $count, 2);
+    $out[] = binary.fromUint("le", $directorySize, 4);
+    $out[] = binary.fromUint("le", $directoryOffset, 4);
+    $out[] = binary.fromUint("le", 0, 2);
     return binary.join($out);
-}
-
-/**
- * Two bytes, little-endian.
- *
- * @param n {int} the value, 0 to 65535
- * @return {bytes} the two bytes
- */
-func le16(n as int) {
-    def out as bytes;
-    $out[] = $n & 0xff;
-    $out[] = ($n >> 8) & 0xff;
-    return $out;
-}
-
-/**
- * Four bytes, little-endian.
- *
- * @param n {int} the value, 0 to 4294967295
- * @return {bytes} the four bytes
- */
-func le32(n as int) {
-    def out as bytes;
-    $out[] = $n & 0xff;
-    $out[] = ($n >> 8) & 0xff;
-    $out[] = ($n >> 16) & 0xff;
-    $out[] = ($n >> 24) & 0xff;
-    return $out;
 }
