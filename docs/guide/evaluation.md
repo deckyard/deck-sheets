@@ -127,15 +127,16 @@ Taking the first cell instead would give answers that look right and are not.
 
 ## Cost
 
-Called from a program on Jennifer 0.27.0, on one host (best of five):
+Called from a program on a 0.28.0 development build, on one host (best of
+three):
 
 | Work | Time |
 |---|---|
-| `SUM` over 5 000 cells | 0.6 s |
-| `SUM` over 50 000 cells | 5.9 s |
-| recalculating 4 000 formula cells | 6.6 s |
-| a 2 000-cell dependency chain | 1.8 s |
-| parsing a 100-token formula | 51 ms |
+| `SUM` over 5 000 cells | 0.3 s |
+| `SUM` over 50 000 cells | 3.5 s |
+| recalculating 4 000 formula cells | 4.2 s |
+| a 2 000-cell dependency chain | 1.1 s |
+| parsing a 100-token formula | 13 ms |
 
 Parsing is the only superlinear step, and `MAX_FORMULA_TOKENS` bounds it. See
 [Memory](../internal/memory.md).
