@@ -68,6 +68,7 @@ use compress;
 use crc;
 use xml;
 use json;
+use regex;
 use encoding;
 
 import "csv.j" as csv;

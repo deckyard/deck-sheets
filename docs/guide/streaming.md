@@ -29,23 +29,24 @@ is nothing to close.
 
 `nextRow` updates the cursor and hands it back, so inside a function
 `$r = nextRow($r)` moves it without a copy. A cursor in a top-level variable
-is copied on every call: its 256 KiB window of the sheet and the XLSX shared
-strings. Put the loop in a function.
+is copied on every call, but only its 64 KiB window of the sheet copies byte
+by byte; the rest is strings, which copy in constant time. A loop in a
+function is still somewhat faster.
 
 You see each row once, in order. For random access, read the workbook.
 
 ## Cost
 
-A 25 000-row, 20-column XLSX (500 000 cells, 16 MB of sheet XML), on
-Jennifer 0.27.0, on one host:
+A 25 000-row, 20-column XLSX (500 000 cells, 16 MB of sheet XML, 5.6 MB of
+shared strings), on a 0.28.0 development build, on one host:
 
 | | time | peak RSS |
 |---|---|---|
-| `open`, the whole workbook | 46 s | 4.9 GB |
-| `openRows` loop in a function | 41 s | 510 MB |
-| `openRows` loop at top level | 51 s | 490 MB |
+| `open`, the whole workbook | 27 s | 970 MB |
+| `openRows` loop in a function | 19 s | 165 MB |
+| `openRows` loop at top level | 22 s | 175 MB |
 
-A row costs about what it costs in a whole read, in a tenth of the memory.
+A row costs less than in a whole read, in a sixth of the memory.
 See [Memory](../internal/memory.md).
 
 ## Formats

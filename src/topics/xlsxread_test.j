@@ -450,3 +450,21 @@ func testAPlainSplitIsNotAFreeze() {
     testing.assertEqual($back.layout.frozenRows, 0);
     testing.assertEqual($back.layout.frozenColumns, 0);
 }
+
+func testThePackedSharedTableSpansChunks() {
+    # Enough non-ASCII text for several chunks, one string longer than a chunk.
+    def entries as list of string init [];
+    for (def i in 0..3000) {
+        $entries[] = "zählung " + convert.toString($i) + " " + strings.replicate("ü", 40);
+    }
+    $entries[] = strings.replicate("é", SHARED_CHUNK + 10);
+    $entries[] = "";
+    $entries[] = "last";
+    def table as SharedTable init packShared($entries);
+    testing.assertTrue(len($table.chunks) > 2);
+    for (def i in 0..len($entries)) {
+        testing.assertEqual(sharedString($table, convert.toString($i)), $entries[$i]);
+    }
+    testing.assertEqual(sharedString($table, convert.toString(len($entries))), "");
+    testing.assertEqual(sharedString($table, "-1"), "");
+}

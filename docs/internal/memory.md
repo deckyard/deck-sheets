@@ -31,6 +31,7 @@ find each row with the scanner and hold no more than that row. Streaming the
 |---|---|
 | `xml.decode` of the whole sheet | 5.11 GB |
 | `openRows`, Jennifer 0.27.0 | 490 MB |
+| `openRows`, a 0.28.0 development build | 165 MB |
 
 Three properties of the scanner are load-bearing:
 

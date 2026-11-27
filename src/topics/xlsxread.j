@@ -1491,33 +1491,48 @@ func sharedString(shared as SharedTable, rawIndex as string) {
     } catch (e) {
         return "";
     }
-    def count as int init len($shared.ends) // 4;
+    def count as int init len($shared.index) // SHARED_ENTRY;
     if ($index < 0 or $index >= $count) {
         return "";
     }
-    def start as int init 0;
-    if ($index > 0) {
-        $start = binary.readUint("le", $shared.ends, ($index - 1) * 4, 4);
-    }
-    return byteText($shared.text, $start, binary.readUint("le", $shared.ends, $index * 4, 4));
+    def at as int init $index * SHARED_ENTRY;
+    def chunk as int init convert.toInt($shared.index[$at..$at + SHARED_FIELD]);
+    def first as int init convert.toInt($shared.index[$at + SHARED_FIELD..$at + 2 * SHARED_FIELD]);
+    def last as int init convert.toInt($shared.index[$at + 2 * SHARED_FIELD..$at + SHARED_ENTRY]);
+    return $shared.chunks[$chunk][$first..$last];
 }
 
 /**
- * The shared string table, packed into bytes.
+ * The shared string table, packed into strings.
  *
- * `text` is every string's UTF-8 run together, and `ends` each string's end
- * offset in it as four little-endian bytes. A row cursor held in a top-level
- * variable is copied for every row, and a `bytes` field copies as one block
- * where a `list of string` costs time per element: 1.2 ms a row for 17,500
- * strings.
+ * A row cursor held in a top-level variable is copied for every row. A string
+ * copies in constant time, where a `bytes` value copies every byte (the
+ * table's whole size per row) and a `list of string` costs time per element
+ * (1.2 ms a row for 17,500 strings). So the strings are run together into
+ * chunks of about `SHARED_CHUNK` characters, a few list elements for even a
+ * large table, and `index` is ASCII: for each string, its chunk, start and end
+ * as `SHARED_FIELD`-digit decimals. A chunk stays short, so slicing one is
+ * cheap even with non-ASCII text.
  *
- * @field text {bytes} the strings, back to back
- * @field ends {bytes} the end offset of each, 4 bytes little-endian
+ * @field chunks {list of string} the strings, back to back, a chunk at a time
+ * @field index {string} each string's chunk, start and end, in index order
  */
 export def struct SharedTable {
-    text as bytes,
-    ends as bytes
+    chunks as list of string,
+    index as string
 };
+
+/**
+ * About how many characters of shared strings one chunk holds; a longer
+ * string gets a chunk of its own.
+ */
+def const SHARED_CHUNK as int init 65536;
+
+/** The digits of one number in a `SharedTable` index. */
+def const SHARED_FIELD as int init 10;
+
+/** The characters of one string's entry in a `SharedTable` index. */
+def const SHARED_ENTRY as int init 30;
 
 /**
  * Pack a list of strings into a table.
@@ -1526,16 +1541,36 @@ export def struct SharedTable {
  * @return {SharedTable} the table
  */
 func packShared(entries as list of string) {
-    def texts as list of bytes init [];
-    def ends as list of bytes init [];
-    def at as int init 0;
+    def chunks as list of string init [];
+    def chunk as list of string init [];
+    def size as int init 0;
+    def index as list of string init [];
     for (def one in $entries) {
-        def body as bytes init encoding.encode("utf-8", $one);
-        $at = $at + len($body);
-        $texts[] = $body;
-        $ends[] = le32($at);
+        def n as int init len($one);
+        if ($size > 0 and $size + $n > SHARED_CHUNK) {
+            $chunks[] = strings.join($chunk, "");
+            $chunk = [];
+            $size = 0;
+        }
+        $index[] = sharedField(len($chunks)) + sharedField($size) + sharedField($size + $n);
+        $chunk[] = $one;
+        $size = $size + $n;
     }
-    return SharedTable{text: binary.join($texts), ends: binary.join($ends)};
+    if (len($chunk) > 0) {
+        $chunks[] = strings.join($chunk, "");
+    }
+    return SharedTable{chunks: $chunks, index: strings.join($index, "")};
+}
+
+/**
+ * A number as `SHARED_FIELD` decimal digits, zero-padded.
+ *
+ * @param n {int} the number, not negative and below 10^10
+ * @return {string} the digits
+ */
+func sharedField(n as int) {
+    def digits as string init convert.toString($n);
+    return strings.replicate("0", SHARED_FIELD - len($digits)) + $digits;
 }
 
 /**

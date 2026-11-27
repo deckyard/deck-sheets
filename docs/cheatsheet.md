@@ -287,13 +287,13 @@ Treat it as opaque and use the functions above.
 
 ### `SharedTable`
 
-The cursor's shared string table, packed into bytes so a copy of the cursor
-moves one block, not one string at a time. Opaque.
+The cursor's shared string table, packed into strings so a copy of the
+cursor takes constant time per chunk. Opaque.
 
 | Field | What it holds |
 | --- | --- |
-| `text as bytes` | the strings' UTF-8, back to back |
-| `ends as bytes` | each string's end offset in `text`, 4 bytes little-endian |
+| `chunks as list of string` | the strings, back to back, about 64K characters a chunk |
+| `index as string` | each string's chunk, start and end, as 10-digit decimals |
 
 ## OpenDocument
 

@@ -15,7 +15,7 @@
  * close. The markup waits in `rest` as strings, which copy in constant time,
  * and moves into the `src` window a slice at a time, so a cursor that is
  * copied for every row (one held in a top-level variable is) copies the window
- * and not the sheet. The calling shape is `$r = nextRow($r)`:
+ * and not the sheet; the shared string table is strings too (`SharedTable`). The calling shape is `$r = nextRow($r)`:
  *
  *     def r as RowReader init openRows("huge.xlsx", "Sheet1");
  *     while (hasRow($r)) {
@@ -36,7 +36,7 @@
  * @field namespaces {map of string to string} the prefixes declared around
  *   the rows, for XLSX, so a row decoded on its own can resolve them
  * @field rest {list of string} the sheet's rows not yet moved into the
- *   window, in slices of up to 256 KiB
+ *   window, in slices of up to 64 KiB
  */
 export def struct RowReader {
     src as bytes,
@@ -57,9 +57,10 @@ export def struct RowReader {
  * How many bytes of markup a cursor moves into its window at a time.
  *
  * Large enough that refills are rare, small enough that copying the window
- * for each row costs little next to decoding the row.
+ * for each row costs little next to decoding the row: a `bytes` field copies
+ * every byte, and at 256 KiB the copy took about as long as the row.
  */
-def const ROW_WINDOW as int init 262144;
+def const ROW_WINDOW as int init 65536;
 
 /**
  * Open a cursor over a sheet of a file.

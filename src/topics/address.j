@@ -38,6 +38,10 @@ def const MAX_COLUMN_LETTERS as int init 3;
  */
 def const MAX_ROW_DIGITS as int init 7;
 
+# A reference in its common shape: up to `MAX_COLUMN_LETTERS` letters and
+# `MAX_ROW_DIGITS` digits, each optionally anchored with `$`.
+def const REF_RE as string init '^\$?([A-Za-z]{1,3})\$?([0-9]{1,7})$';
+
 /**
  * Where one cell sits, zero-based.
  *
@@ -212,6 +216,16 @@ func columnNames(count as int) {
  *   parseRef("$B$7");   # the same
  */
 export func parseRef(text as string) {
+    # The common shape in one native match: a reader decodes a reference for
+    # every cell, and the walk below costs about 20 us a call. Anything else,
+    # every malformed reference included, takes the walk and its messages.
+    def m as regex.Match init regex.find(REF_RE, $text);
+    if ($m.start == 0) {
+        def found as int init convert.toInt($m.groups[1]) - 1;
+        if ($found >= 0) {
+            return ref($found, columnIndex($m.groups[0]));
+        }
+    }
     def bare as string init strings.replace($text, "$", "");
     if ($bare == "") {
         fail("cell reference " + quoted($text) + " is empty");
